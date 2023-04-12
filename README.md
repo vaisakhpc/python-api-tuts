@@ -68,10 +68,53 @@ Set up the environment variables in ``dev.env`` file
 
 ``python manage.py runserver``
 
+### Application Folder Structure
+
+````bash
+app/
+├── api/
+│   ├── migrations/
+│   ├── models.py
+│   ├── serializers.py
+│   ├── tests.py
+│   ├── urls.py
+│   ├── views.py
+│   └── __init__.py
+├── django-rest-api/
+│   ├── asgi.py
+│   ├── settings.py
+│   ├── urls.py
+│   ├── wsgi.py
+│   └── __init__.py
+├── Dockerfile
+├── manage.py
+└── requirements.txt
+````
+
+#### Project
+
+- `api/`: This directory contain the files for the API Django app:
+  - `migrations`/: This directory contains database migration files.
+    - `0001_initial.py`: Contains the initial migration for database.
+  - `models.py`: Defines Django models, in this case User object.
+  - `serializers.py`: Defines how Django models, in this case "User" should be serialized into JSON.
+  - `tests.py`: Contains API tests.
+  - `urls.py`: Defines API endpoint URL's.
+  - `views.py`: Contains API endpoints functions.
+- `django-rest-api/`: Part of Django’s configuration. Acts as "core" for the Django project.
+  - `asgi.py:` Part of Django’s configuration.
+  - `settings.py`: Contains your project’s settings.
+  - `urls.py:` Defines available URL's.
+  - `wsgi.py:` Part of Django’s configuration.
+- `Dockerfile`: Builds a Docker image for containerization.
+- `manage.py`: This is a command-line utility for example running the server, create database tables, etc.
+- `requirements.txt`: List all project dependencies.
+
 ## API Documentation
 
-The API documentation is available at [localhost:8000](http://localhost:8000/). It has been generated using
-[Swagger](https://swagger.io/).
+The API documentation is available at [localhost:8000](http://localhost:8000/). It is generated using
+[Swagger](https://swagger.io/). You need to start the server in order to see the documentation as it is being hosted
+locally.
 
 ## License
 
