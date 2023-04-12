@@ -14,7 +14,14 @@ applications.
 
 ## Requirements
 
-- Docker
+### Windows
+
+Install Docker Desktop
+
+### Linux and WSL2
+
+- ``sudo apt install docker-compose``
+- ``sudo service docker start``
 
 ## Installation
 
