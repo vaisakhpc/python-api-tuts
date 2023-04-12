@@ -16,7 +16,7 @@ applications.
 
 ### Windows
 
-Install Docker Desktop
+- [Docker Desktop](https://www.docker.com/products/docker-desktop)
 
 ### Linux and WSL2
 
@@ -25,15 +25,19 @@ Install Docker Desktop
 
 ## Installation
 
+You can either host the application with docker (recommended) or locally without docker.
+
 ### Clone the repository
 
 ``git clone https://github.com/Jeb4dev/django-rest-api.git``
 
-### Build and run the containers
+### Host with docker
+
+#### Build and run the containers
 
 ``docker-compose up --build -d``
 
-### Run the migrations
+#### Run the migrations
 
 ``docker-compose exec web python manage.py migrate``
 
@@ -44,6 +48,18 @@ Install Docker Desktop
 #### Run the tests - Optional
 
 ``docker-compose exec web python manage.py test``
+
+### Host locally without docker - Not Recommended
+
+If you want to host the application locally without docker, you will need to have Python 3.10+ installed.
+After than run the following commands:
+
+````
+cd .\app\
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
+````
 
 ---
 
