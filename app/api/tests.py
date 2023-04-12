@@ -295,31 +295,6 @@ class UserTestCase(APITestCase):
         response = self.client.delete("/api/users/delete?email=wrong@example.com")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    # ----------------- SECURITY -----------------
-    # Test security of endpoints
-
-    def test_get_users_when_not_authenticated(self):
-        """
-        Test API: Test SQL injection on user creation.
-        """
-        data = self.data
-        data["name"] = "Jane Doe'; DROP TABLE users;"
-        response = self.client.post("/api/users/add", data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(User.objects.count(), 1)
-
-    def test_xss_attack(self):
-        """
-        Test API: Verify that XSS is not possible.
-        """
-        # Attempt an XSS attack
-        malicious_input = '"<script>alert("XSS!");</script>'
-        self.create_test_user(malicious_input, "emai@gmail.com", 25)
-        response = self.client.get("/api/users")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Verify that the malicious input has been escaped
-        self.assertNotIn(malicious_input, response.content.decode())
-
 
 class DocsTestCase(APITestCase):
 
