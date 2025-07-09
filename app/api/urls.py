@@ -6,6 +6,7 @@ from rest_framework_simplejwt.views import (
 from api.views.user_registration_view import ResendRegistrationEmailView
 from api.views.user_password_view import SetPasswordView
 from api.views.apiuser_token_view import UserTokenObtainView, UserTokenRefreshView
+from api.views.mutual_fund_search_view import MutualFundSearchView
 
 urlpatterns = [
     path('users/', include('api.routes.user_urls')),
@@ -15,4 +16,6 @@ urlpatterns = [
     path('user/set-password/', SetPasswordView.as_view()),
     path('user/token/', UserTokenObtainView.as_view()),
     path('user/token/refresh/', UserTokenRefreshView.as_view()),
+    path('mutualfunds/search/', MutualFundSearchView.as_view(), name='mutualfund-search'),
+    path('', include('api.routes.mf_urls')),
 ]
