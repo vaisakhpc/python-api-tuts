@@ -11,6 +11,6 @@ class MutualFundSerializer(serializers.ModelSerializer):
     class Meta:
         model = MutualFund
         fields = ['id', 'mf_name', 'start_date', 'AUM', 'exit_load',
-                  'expense_ratio', 'type']
+                  'expense_ratio', 'type', 'isin_growth', 'latest_nav', 'latest_nav_date', 'mf_schema_code']
         read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
         list_serializer_class = MutualFundBulkListSerializer
