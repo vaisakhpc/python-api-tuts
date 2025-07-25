@@ -7,6 +7,7 @@ from api.utils.xirr import xirr
 from datetime import date as dt_date
 from datetime import timedelta
 from django.utils import timezone
+from api.utils.fifo_util import fifo_open_lots
 
 class PortfolioReturnsView(APIView):
     authentication_classes = [CustomerUUIDAuthentication]
@@ -15,105 +16,78 @@ class PortfolioReturnsView(APIView):
     def get(self, request):
         ten_days_ago = timezone.localdate() - timedelta(days=10)
         user = request.user
-        holdings = MFHolding.objects.filter(
-            user=user,
-            sold_price__isnull=True,
-            sold_date__isnull=True,
-            fund__latest_nav_date__gte=ten_days_ago  # Only include funds updated within last 10 days
-        ).select_related('fund')
-        total_invested = 0
-        current_value = 0
-        cashflows = []
-        dates = []
+        # Only include funds updated in the last 10 days (active funds)
+        txns = (
+            MFHolding.objects.filter(
+                user=user,
+                fund__latest_nav_date__gte=ten_days_ago
+            ).select_related('fund').order_by('fund', 'transacted_at', 'id')
+        )
 
-        for h in holdings:
-            units = float(h.units)
-            nav_bought = float(h.NAV)
-            fund = h.fund
-            if not fund or not fund.latest_nav or not fund.latest_nav_date:
-                continue
-            invested = units * nav_bought
-            total_invested += invested
-            cashflows.append(-invested)
-            dates.append(h.purchased_at)
-            current_value += units * float(fund.latest_nav)
+        # Gather all txns as dicts (flat for XIRR, FIFO)
+        txn_list = [{
+            'type': t.type,
+            'units': float(t.units),
+            'nav': float(t.nav),
+            'transacted_at': t.transacted_at,
+            'fund': t.fund.id,
+            'fund_obj': t.fund,
+        } for t in txns]
 
-        # Only add to cashflows if there’s at least one valid holding
-        if current_value > 0 and len(cashflows) > 0:
-            latest_date = max(
-                [h.fund.latest_nav_date for h in holdings if h.fund and h.fund.latest_nav_date],
-                default=None
-            )
-            if not latest_date:
-                latest_date = dt_date.today()
-            cashflows.append(current_value)
-            dates.append(latest_date)
-
-        profit = current_value - total_invested  # <-- Make sure this comes AFTER total_invested and current_value are computed
-        absolute_return = (profit / total_invested * 100) if total_invested else None
-
-        try:
-            xirr_val = xirr(cashflows, dates)
-        except Exception as e:
-            xirr_val = None
-
-        return Response({
-            "total_invested": round(total_invested, 2),
-            "current_value": round(current_value, 2),
-            "profit": round(profit, 2),
-            "absolute_return": round(absolute_return, 2) if absolute_return is not None else None,
-            "xirr": xirr_val
-        })
-        user = request.user
-        holdings = MFHolding.objects.filter(
-            user=user,
-            sold_price__isnull=True,
-            sold_date__isnull=True
-        ).select_related('fund')
+        # FIFO cost basis of all open lots (per fund)
+        open_lots = fifo_open_lots(txn_list)
 
         total_invested = 0
+        current_value = 0
+        fund_obj_map = {t['fund']: t['fund_obj'] for t in txn_list}
+        for lot in open_lots:
+            fund_obj = fund_obj_map[lot['fund']]
+            total_invested += lot['units_left'] * lot['nav']
+            latest_nav = float(fund_obj.latest_nav or 0)
+            current_value += lot['units_left'] * latest_nav
+
+        total_invested = round(total_invested, 2)
+        current_value = round(current_value, 2)
+        profit = round(current_value - total_invested, 2)
+        absolute_return = round(((profit / total_invested) * 100), 2) if total_invested else None
+
+        # Prepare cashflows for XIRR: all buys(-), all sells(+), open lots (+) at 'today'
         cashflows = []
         dates = []
-        current_value = 0
-        for h in holdings:
-            units = float(h.units)
-            nav_bought = float(h.NAV)
-            fund = h.fund
-            if not fund or not fund.latest_nav or not fund.latest_nav_date:
-                continue
-            invested = units * nav_bought
-            # Outflow on the purchase date
-            cashflows.append(-invested)
-            dates.append(h.purchased_at)
-            # Sum up current value for all holdings
-            current_value += units * float(fund.latest_nav)
-
-        # Use the latest NAV date among all holdings for the inflow
-        if current_value > 0:
-            latest_date = max([h.fund.latest_nav_date for h in holdings if h.fund and h.fund.latest_nav_date], default=None)
-            from datetime import date as dt_date
-            if not latest_date:
-                latest_date = dt_date.today()
-            cashflows.append(current_value)
-            dates.append(latest_date)
-
-        error_msg = None
+        for t in txn_list:
+            amt = float(t['units']) * float(t['nav'])
+            if t['type'] == 'BUY':
+                cashflows.append(-amt)
+                dates.append(t['transacted_at'])
+            elif t['type'] == 'SELL':
+                cashflows.append(amt)
+                dates.append(t['transacted_at'])
+        # Add *each open lot* as a positive cash flow at latest fund NAV/date
+        for lot in open_lots:
+            fund_obj = [t['fund_obj'] for t in txn_list if t['fund'] == lot['fund']][0]
+            latest_nav = float(fund_obj.latest_nav or 0)
+            latest_nav_date = fund_obj.latest_nav_date or date.today()
+            value = lot['units_left'] * latest_nav
+            if value > 0:
+                cashflows.append(value)
+                dates.append(latest_nav_date)
         
-        profit = current_value - total_invested  # <-- Make sure this comes AFTER total_invested and current_value are computed
-        absolute_return = (profit / total_invested * 100) if total_invested else None
-        
-        try:
-            xirr_val = xirr(cashflows, dates)
-        except Exception:
-            error_msg = f"XIRR calculation error: {e}. Cashflows: {cashflows} Dates: {dates}"
+        error_msg = None 
+        # XIRR Calculation
+        if not (any(cf < 0 for cf in cashflows) and any(cf > 0 for cf in cashflows)):
             xirr_val = None
-
+        else:
+            try:
+                xirr_val = xirr(cashflows, dates)
+            except Exception as e:
+                error_msg = f"XIRR calculation error: {e}. Cashflows: {cashflows} Dates: {dates}"
+                xirr_val = None
 
         return Response({
-            "total_invested": round(total_invested, 2),
-            "current_value": round(current_value, 2),
-            "profit": round(profit, 2),
-            "absolute_return": round(absolute_return, 2) if absolute_return is not None else None,
+            "total_invested": total_invested,
+            "current_value": current_value,
+            "profit": profit,
+            "absolute_return": absolute_return,
             "xirr": xirr_val,
-            "xirr_error": error_msg
+            #"xirr_error": error_msg
         })

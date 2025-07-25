@@ -36,8 +36,8 @@ class Command(BaseCommand):
             updated, failed, deleted = 0, 0, 0
             for fund in funds:
                 try:
-                    url = f"https://mf.captnemo.in/nav/{fund.isin_growth}"
-                    resp = requests.get(url, timeout=10)
+                    url = f"https://api.mfapi.in/mf/{fund.mf_schema_code}"
+                    resp = requests.get(url, timeout=12)
                     if resp.status_code != 200:
                         self.stderr.write(
                             f"Failed to fetch NAV ({resp.status_code}) for {fund.mf_name} (ISIN: {fund.isin_growth}). Deleting fund."
@@ -47,17 +47,30 @@ class Command(BaseCommand):
                         continue
 
                     data = resp.json()
-                    nav = data.get("nav")
-                    nav_date = data.get("date")
-                    historical_nav = data.get("historical_nav", [])
-                    
+                    historical_nav = data.get("data", [])
+                    latest_nav_record = historical_nav[0]
+                    latest_nav_date_str = latest_nav_record.get("date")
+                    latest_nav_val_str = latest_nav_record.get("nav")
+
+                    # Parse latest NAV/date (from DD-MM-YYYY)
+                    nav_date = datetime.strptime(latest_nav_date_str, "%d-%m-%Y").date()
+                    nav = nav_val = float(latest_nav_val_str.replace(',', ''))
                     last_updated = fund.nav_last_updated  # Can be None!
+                    
                     # Store historical NAVs
-                    for dt, nav_val in historical_nav:
-                        dt_obj = datetime.strptime(dt, "%Y-%m-%d").date()
+                    for entry in historical_nav:
+                        # entry: {'date': '24-07-2025', 'nav': '52.18300'}
+                        dt_str = entry.get('date')
+                        nav_str = entry.get('nav')
+                        if not (dt_str and nav_str):
+                            continue  # skip incomplete entries
+                        try:
+                            dt_obj = datetime.strptime(dt_str, "%d-%m-%Y").date()
+                            nav_val = float(nav_str.replace(',', ''))  # in case commas present
+                        except Exception:
+                            continue  # skip malformed data
                         if last_updated and dt_obj <= last_updated.date():
-                            # Already processed, skip
-                            continue
+                            continue  # Already processed
                         try:
                             FundHistoricalNAV.objects.get_or_create(
                                 isin_growth=fund.isin_growth,
@@ -65,13 +78,13 @@ class Command(BaseCommand):
                                 defaults={'nav': nav_val}
                             )
                         except IntegrityError:
-                            pass  # already exists
+                            # Already exists
+                            pass
 
                     # Optionally save yesterday's NAV
                     if fund.latest_nav is not None and fund.latest_nav_date and nav_date:
                         latest_fund_date = fund.latest_nav_date
-                        today_date_obj = datetime.strptime(nav_date, "%Y-%m-%d").date()
-                        if latest_fund_date < today_date_obj:
+                        if latest_fund_date < nav_date:
                             FundHistoricalNAV.objects.get_or_create(
                                 isin_growth=fund.isin_growth,
                                 date=latest_fund_date,
@@ -81,7 +94,7 @@ class Command(BaseCommand):
                     # Update or delete
                     if nav and nav_date:
                         fund.latest_nav = nav
-                        fund.latest_nav_date = datetime.strptime(nav_date, "%Y-%m-%d").date()
+                        fund.latest_nav_date = nav_date
                         fund.nav_last_updated = timezone.now()
                         fund.save(update_fields=['latest_nav', 'latest_nav_date', 'nav_last_updated'])
                         updated += 1
@@ -89,10 +102,10 @@ class Command(BaseCommand):
                             f"Updated {fund.mf_name}: NAV={nav} Date={nav_date} ISIN={fund.isin_growth}"
                         )
                     else:
-                        self.stderr.write(
-                            f"No NAV in API response for {fund.mf_name} (ISIN: {fund.isin_growth}) — DELETING fund from DB."
-                        )
                         fund.delete()
+                        self.stderr.write(
+                            f"Failed updating {fund.mf_name}: NAV={nav} Date={nav_date} ISIN={fund.isin_growth}"
+                        )
                         deleted += 1
                 except Exception as e:
                     failed += 1
