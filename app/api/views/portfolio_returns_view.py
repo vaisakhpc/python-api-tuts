@@ -5,19 +5,22 @@ from rest_framework.response import Response
 from api.models import MFHolding
 from api.utils.xirr import xirr
 from datetime import date as dt_date
+from datetime import timedelta
+from django.utils import timezone
 
 class PortfolioReturnsView(APIView):
     authentication_classes = [CustomerUUIDAuthentication]
     permission_classes = [IsActiveCustomer]
 
     def get(self, request):
+        ten_days_ago = timezone.localdate() - timedelta(days=10)
         user = request.user
         holdings = MFHolding.objects.filter(
             user=user,
             sold_price__isnull=True,
-            sold_date__isnull=True
+            sold_date__isnull=True,
+            fund__latest_nav_date__gte=ten_days_ago  # Only include funds updated within last 10 days
         ).select_related('fund')
-        holdings = MFHolding.objects.all()
         total_invested = 0
         current_value = 0
         cashflows = []

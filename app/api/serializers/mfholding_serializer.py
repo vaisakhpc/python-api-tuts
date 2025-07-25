@@ -8,13 +8,11 @@ class MFHoldingSerializer(serializers.ModelSerializer):
         model = MFHolding
         fields = [
             'id',
-            'holding_id',
             'fund',
-            'NAV',
+            'nav',
             'units',
-            'purchased_at',
-            'sold_price',
-            'sold_date',
+            'type',
+            'transacted_at',
             'created_at',
             'updated_at',
         ]
