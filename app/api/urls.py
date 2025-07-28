@@ -11,6 +11,7 @@ from api.views.fetch_mutual_funds_view import FetchMutualFundsView
 from api.views.mutual_fund_detail_view import MutualFundDetailView
 from api.views.portfolio_returns_view import PortfolioReturnsView
 from api.views.historical_profit_view import HistoricalProfitView
+from api.views.transaction_import_view import TransactionImportView
 
 urlpatterns = [
     path('users/', include('api.routes.user_urls')),
@@ -27,4 +28,5 @@ urlpatterns = [
     path('fetch-funds/', FetchMutualFundsView.as_view(), name='fetch-mutual-funds'),
     path('portfolio-returns/', PortfolioReturnsView.as_view()),
     path('historical-profit/', HistoricalProfitView.as_view()),
+    path('import-transactions/', TransactionImportView.as_view()),
 ]

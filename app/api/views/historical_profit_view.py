@@ -87,6 +87,10 @@ class HistoricalProfitView(APIView):
                 # --- Month increment logic (remains the same) ---
                 if dt.month == 12:
                     dt = dt.replace(year=dt.year+1, month=1)
+                    stepup_str = request.query_params.get('stepup')
+                    if stepup_str:
+                        stepup = Decimal(stepup_str)
+                        amount += round(amount * (stepup / 100), 0)
                 else:
                     dt = dt.replace(month=dt.month+1)
                 try:
