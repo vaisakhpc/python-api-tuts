@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   web:
     build: ./app
@@ -28,6 +26,16 @@ services:
     ports:
       - "1025:1025"   # SMTP port
       - "8025:8025"   # Web UI
+  elasticsearch:
+    image: elasticsearch:8.14.1
+    environment:
+      - "discovery.type=single-node"
+      - "xpack.security.enabled=false"
+    ports:
+      - "9300:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
 
 volumes:
   postgres_data:
+  esdata:

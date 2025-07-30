@@ -2,6 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from api.models import FundHistoricalNAV, MutualFund
 from api.utils.xirr import xirr
+from api.utils.capital_gains import calculate_equity_capital_gains
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from rest_framework.permissions import AllowAny
@@ -37,7 +38,12 @@ class HistoricalProfitView(APIView):
                 "statusCode": 404,
                 "errorMessage": f"Mutual fund with ISIN {isin} not found."
             })
-
+        if not fund.latest_nav_date or not fund.latest_nav:
+            return Response({
+                "statusCode": 404,
+                "errorMessage": "Latest NAV data not available on fund"
+            })
+            
         navs = FundHistoricalNAV.objects.filter(
             isin_growth=isin, date__gte=start_date, date__lte=today
         ).order_by('date')
@@ -51,8 +57,7 @@ class HistoricalProfitView(APIView):
         invested_dates = []
         cashflows = []
         abs_invested = Decimal('0')
-        latest_nav_entry = navs.latest('date')
-        redemption_date = latest_nav_entry.date
+        redemption_date = fund.latest_nav_date
 
         if invest_type == 'lumpsum':
             # Invest all at first available NAV >= start date
@@ -122,7 +127,7 @@ class HistoricalProfitView(APIView):
 
 
         # Finally, append the final corpus inflow
-        corpus_now = units * Decimal(latest_nav_entry.nav)
+        corpus_now = units * Decimal(fund.latest_nav)
         cashflows.append(corpus_now)
         invested_dates.append(redemption_date)
 
@@ -140,15 +145,15 @@ class HistoricalProfitView(APIView):
         if invest_type == 'sip' and len(monthly_growth) > 0:
             # Use all SIP units and all invested so far
             # Use the latest NAV (already in latest_nav_entry) as the "current" corpus valuation
-            corpus_now = total_units * Decimal(latest_nav_entry.nav)
+            corpus_now = total_units * Decimal(fund.latest_nav)
             profit_now = corpus_now - invested_so_far
 
             # Only add if latest NAV date isn't already in the list OR if "today" > last nav date
-            already_includes_latest = (monthly_growth[-1]["date"] == latest_nav_entry.date)
+            already_includes_latest = (monthly_growth[-1]["date"] == fund.latest_nav_date)
             # Optionally, only add if today's date is not already in history
             if not already_includes_latest:
                 monthly_growth.append({
-                    "date": latest_nav_entry.date,  # the latest date for which you have NAV
+                    "date": fund.latest_nav_date,  # the latest date for which you have NAV
                     "invested": round(float(invested_so_far), 2),
                     "corpus": round(float(corpus_now), 2),
                     "profit": round(float(profit_now), 2),
@@ -156,6 +161,23 @@ class HistoricalProfitView(APIView):
                     "sip_amount": None,  # No SIP this month, just tracking value
                     "abs_return_pct": round(float(profit_now / invested_so_far * 100), 2) if invested_so_far else None
                 })
+                
+        tax_results = {}
+        # Apply Capital gains
+        if 'equity' in fund.type.lower():
+            purchase_records = []
+            # Example build purchase_records from your SIP logic:
+            for d, cf in zip(invested_dates, cashflows):
+                if cf < 0:  # Purchase cash flow
+                    units_bought = -(cf) / Decimal(navs.get(date=d).nav)  # Inverse of cashflow/nav
+                    purchase_records.append({
+                        "units": units_bought,
+                        "purchase_date": d,
+                        "purchase_nav": Decimal(navs.get(date=d).nav),
+                        "amount": -cf,
+                    })
+
+            tax_results = calculate_equity_capital_gains(fund, purchase_records, sell_date=None)
         
         return Response({
             "statusCode": 200,
@@ -165,6 +187,7 @@ class HistoricalProfitView(APIView):
                 "expected_profit": round(float(expected_profit), 2),
                 "absolute_return": round(absolute_return, 2) if absolute_return is not None else None,
                 "xirr": xirr_val,
-                "monthly_growth": monthly_growth
+                "monthly_growth": monthly_growth,
+                "tax_results": tax_results,
             }
         })

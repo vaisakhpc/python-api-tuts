@@ -65,7 +65,6 @@ class MFHoldingViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.
         serializer.save(user=user)
 
     def list(self, request, *args, **kwargs):
-        user = request.user
         queryset = self.get_queryset().order_by('fund', 'transacted_at', 'id')
 
         # Group by fund
@@ -156,8 +155,8 @@ class MFHoldingViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.
                     "total_invested": total_invested,
                     "realized_redemptions": realized_redemptions,
                 },
-                "transactions": txn_list,
                 "fund_details": MutualFundDetailSerializer(fund).data,
+                "transactions": txn_list,
             })
 
         return Response(results, status=status.HTTP_200_OK)
