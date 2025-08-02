@@ -5,6 +5,7 @@ from api.models import FundHistoricalNAV, MutualFund
 import time
 from api.utils.xirr import xirr
 from datetime import date, timedelta
+from api.config.es_config import NAV_INDEX_NAME
 
 class Command(BaseCommand):
     help = 'Intelligently syncs historical NAV data to Elasticsearch, one ISIN at a time.'
@@ -68,7 +69,7 @@ class Command(BaseCommand):
         self.stdout.write("Starting intelligent NAV data sync with calculations...")
         
         es_host = getattr(settings, 'ELASTICSEARCH_HOST', 'http://elasticsearch:9200')
-        index_name = "fund_nav_history"
+        index_name = NAV_INDEX_NAME
         es = Elasticsearch(es_host)
 
         if not es.indices.exists(index=index_name):

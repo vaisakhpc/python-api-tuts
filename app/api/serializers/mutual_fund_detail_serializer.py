@@ -1,18 +1,15 @@
 # serializers.py
 from rest_framework import serializers
-from api.models import MutualFund
-from api.models import FundHistoricalNAV
+from api.models import MutualFund, FundHistoricalNAV
+from django.conf import settings
 from datetime import timedelta, date
 from api.utils.xirr import xirr
+from elasticsearch import Elasticsearch, NotFoundError, ConnectionError
+import logging
+from api.config.es_config import NAV_INDEX_NAME
 
-RETURN_WINDOWS = [
-    ("6M", 182), # 6 months = 182 days
-    ("1Y", 365),
-    ("3Y", 1095),
-    ("5Y", 1825),
-    ("10Y", 3650),
-    ("All", None)
-]
+# Get a logger instance for this module
+logger = logging.getLogger(__name__)
 
 class MutualFundDetailSerializer(serializers.ModelSerializer):
     returns_xirr = serializers.SerializerMethodField()
@@ -23,55 +20,85 @@ class MutualFundDetailSerializer(serializers.ModelSerializer):
                   'expense_ratio', 'type', 'isin_growth', 'latest_nav',
                   'latest_nav_date', 'mf_schema_code', 'returns_xirr']
 
-    def get_returns_xirr(self, obj):
-        today = obj.latest_nav_date or date.today()
-        isin = obj.isin_growth
-        latest_nav = obj.latest_nav
+    def get_returns_xirr(self, obj, from_es=True):
+        """
+        Fetches pre-calculated returns from Elasticsearch.
+        Falls back to on-the-fly database calculation if not found in ES.
+        """
+        if not obj.isin_growth:
+            return None
+        if not from_es:
+            return self._calculate_returns_from_db(obj)
+        try:
+            es_host = getattr(settings, 'ELASTICSEARCH_HOST', 'http://elasticsearch:9200')
+            es = Elasticsearch(es_host, request_timeout=5)
+            index_name = NAV_INDEX_NAME
+            
+            doc = es.get(index=index_name, id=obj.isin_growth)
+            
+            return doc['_source'].get('returns', {})
 
-        if latest_nav is None or isin is None:
+        except (NotFoundError, ConnectionError) as e:
+            logger.warning(
+                f"Could not fetch returns from Elasticsearch for ISIN {obj.isin_growth}. "
+                f"Falling back to DB calculation. Error: {e}"
+            )
+            # If ES fails, calculate returns from the database
+            return self._calculate_returns_from_db(obj)
+
+    def _calculate_returns_from_db(self, obj):
+        """
+        The original database calculation logic, used as a fallback.
+        """
+        if not obj.latest_nav or not obj.latest_nav_date:
             return {}
 
-        result = {}
-        for label, days in RETURN_WINDOWS:
-            # "All time" special: use earliest historical NAV date
-            if days is None:
-                try:
-                    old = FundHistoricalNAV.objects.filter(isin_growth=isin).order_by('date').first()
-                except FundHistoricalNAV.DoesNotExist:
-                    result[label] = None
-                    continue
-                if old is None or old.nav is None or old.date is None:
-                    result[label] = None
-                    continue
-                nav0, date0 = float(old.nav), old.date
-            else:
-                d0 = today - timedelta(days=days)
-                # Find the earliest working day >= d0 up to d0+30 days
-                nav0row = None
-                for i in range(0, 31):
-                    day_try = d0 + timedelta(days=i)
-                    nav0row = FundHistoricalNAV.objects.filter(isin_growth=isin, date=day_try).first()
-                    if nav0row:
-                        break
-                if nav0row is None:
-                    result[label] = None
-                    continue
-                nav0, date0 = float(nav0row.nav), nav0row.date
+        history_records = FundHistoricalNAV.objects.filter(isin_growth=obj.isin_growth).order_by('date')
+        if not history_records:
+            return {}
 
-            # Now calculate XIRR for [-nav0, latest_nav]
-            # Outflow at date0, inflow at today
+        latest_nav = float(obj.latest_nav)
+        latest_nav_date = obj.latest_nav_date
+        
+        returns = {}
+        return_windows = [
+            ("xirr_6m", 182), ("xirr_1y", 365), ("xirr_3y", 1095),
+            ("xirr_5y", 1825), ("xirr_10y", 3650), ("xirr_all", None)
+        ]
+
+        for key, days in return_windows:
+            start_record = None
+            if days is None:
+                start_record = history_records.first()
+            else:
+                d0 = latest_nav_date - timedelta(days=days)
+                for i in range(0, 31):
+                    try:
+                        start_record = history_records.get(date=(d0 + timedelta(days=i)))
+                        break
+                    except FundHistoricalNAV.DoesNotExist:
+                        continue
+            
+            if not start_record:
+                returns[key] = None
+                continue
+
+            start_nav = float(start_record.nav)
+            start_date = start_record.date
+
             try:
-                if label == "6M":
-                    # Simple absolute return for 6M
-                    simple_return = ((float(latest_nav) - nav0) / nav0) * 100
-                    result[label] = round(simple_return, 2)
+                if key == "xirr_6m":
+                    if start_nav > 0:
+                        simple_return = ((latest_nav - start_nav) / start_nav) * 100
+                        returns[key] = round(simple_return, 2)
+                    else:
+                        returns[key] = None
                 else:
-                    # XIRR for other periods (incl 'All')
-                    rate = xirr(
-                        cashflows=[-nav0, float(latest_nav)],
-                        dates=[date0, today]
-                    )
-                    result[label] = rate
+                    values = [-start_nav, latest_nav]
+                    dates = [start_date, latest_nav_date]
+                    rate = xirr(cashflows=values, dates=dates)
+                    returns[key] = rate
             except Exception:
-                result[label] = None
-        return result
+                returns[key] = None
+                
+        return returns

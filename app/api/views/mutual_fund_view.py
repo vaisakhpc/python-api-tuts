@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions, status
 from api.models import MutualFund
 from api.serializers.mutual_fund_serializer import MutualFundSerializer
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
 
 class IsAdminOrReadOnly(permissions.BasePermission):
     def has_permission(self, request, view):

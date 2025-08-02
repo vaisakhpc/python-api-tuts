@@ -148,3 +148,45 @@ EMAIL_HOST = 'mailhog'  # or 'localhost' if running MailHog outside Docker
 EMAIL_PORT = 1025
 DEFAULT_FROM_EMAIL = 'no-reply@example.com'
 ELASTICSEARCH_HOST = "http://elasticsearch:9200"
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+        },
+    },
+    'handlers': {
+        'file_debug': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': 'logs/django_debug.log',  # File for debug-level logs
+            'formatter': 'verbose',  # Use the verbose formatter
+        },
+        'file_warning': {
+            'level': 'WARNING',
+            'class': 'logging.FileHandler',
+            'filename': 'logs/django_warning.log',  # File for warning-level logs
+            'formatter': 'verbose',  # Use the verbose formatter
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file_debug', 'file_warning'],  # Send logs to both handlers
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'api.serializers': {  # Logger for your serializer module
+            'handlers': ['file_debug', 'file_warning'],  # Send logs to both handlers
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'api.views': {  # Logger for your views module
+            'handlers': ['file_debug', 'file_warning'],  # Send logs to both handlers
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
+}
