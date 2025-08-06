@@ -58,7 +58,7 @@ class MutualFundDetailView(RetrieveAPIView):
             # Return the Elasticsearch document
             return Response(doc['_source'])
 
-        except NotFoundError:
+        except:
             # Fallback to database if not found in Elasticsearch
             logger.warning(f"Document not found in Elasticsearch for {isin or mf_scheme_code}. Falling back to database.")
             obj = self.get_object()
