@@ -6,6 +6,11 @@ from api.utils.capital_gains import calculate_equity_capital_gains
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from rest_framework.permissions import AllowAny
+from django.conf import settings
+from elasticsearch import Elasticsearch, NotFoundError, ConnectionError
+import traceback
+from api.config.es_config import MUTUALFUND_INDEX_NAME, NAV_INDEX_NAME
+import logging
 
 class HistoricalProfitView(APIView):
     authentication_classes = []
@@ -17,7 +22,9 @@ class HistoricalProfitView(APIView):
         amount = request.query_params.get('amount')
         invest_type = request.query_params.get('type', 'lumpsum').lower()
         today = date.today()
-
+        # Set up logging
+        logger = logging.getLogger(__name__)
+        
         if not (isin and start_date_str and amount and invest_type):
             return Response({
                 "statusCode": 400,
@@ -32,7 +39,35 @@ class HistoricalProfitView(APIView):
                 "errorMessage": "Invalid start_date or amount."
             })
 
-        fund = MutualFund.objects.filter(isin_growth=isin).first()
+        # Try to fetch fund details from Elasticsearch first
+        fund = None
+        es_host = getattr(settings, 'ELASTICSEARCH_HOST', 'http://localhost:9200')
+        es = Elasticsearch(es_host)
+        try:
+            es_query = {
+                "query": {
+                    "term": {"isin": isin}
+                }
+            }
+            es_response = es.search(index=MUTUALFUND_INDEX_NAME, body=es_query, size=1)
+            hits = es_response["hits"]["hits"]
+            if hits:
+                fund_data = hits[0]["_source"]
+                # Mimic the Django model instance for required fields
+                class FundObj:
+                    pass
+                fund = FundObj()
+                fund.latest_nav_date = datetime.strptime(fund_data.get("latest_nav_date"), "%Y-%m-%d").date()
+                fund.latest_nav = fund_data.get("latest_nav")
+                fund.type = fund_data.get("type", "")
+                fund.isin_growth = fund_data.get("isin")
+        except Exception as e:
+            logger.warning(f"Error during Elasticsearch search from fund list: {e}. Traceback: {traceback.format_exc()}")
+            fund = None
+
+        # Fallback to database if ES fails or returns no data
+        if not fund:
+            fund = MutualFund.objects.filter(isin_growth=isin).first()
         if not fund:
             return Response({
                 "statusCode": 404,
@@ -44,14 +79,49 @@ class HistoricalProfitView(APIView):
                 "errorMessage": "Latest NAV data not available on fund"
             })
             
-        navs = FundHistoricalNAV.objects.filter(
-            isin_growth=isin, date__gte=start_date, date__lte=today
-        ).order_by('date')
-        if not navs.exists():
-            return Response({
-                "statusCode": 404,
-                "errorMessage": f"No NAV data found for given fund and period."
-            })
+       # Try to fetch NAVs from Elasticsearch first
+        navs = []
+        es_host = getattr(settings, 'ELASTICSEARCH_HOST', 'http://localhost:9200')
+        es = Elasticsearch(es_host)
+        try:
+            es_query = {
+                "query": {
+                    "bool": {
+                        "must": [
+                            {"term": {"isin": isin}},
+                            {"range": {"date": {"gte": start_date_str, "lte": today.strftime("%Y-%m-%d")}}}
+                        ]
+                    }
+                },
+                "sort": [{"date": {"order": "asc"}}]
+            }
+            es_response = es.search(index=NAV_INDEX_NAME, body=es_query, size=10000)
+            navs = [
+                {
+                    "date": datetime.strptime(hit["_source"]["date"], "%Y-%m-%d").date(),
+                    "nav": Decimal(str(hit["_source"]["nav"]))
+                }
+                for hit in es_response["hits"]["hits"]
+            ]
+
+        except (NotFoundError, ConnectionError, Exception) as e:
+            logger.warning(f"Error fetching NAVs from Elasticsearch: {e}. Traceback: {traceback.format_exc()}")
+            navs = None
+
+        # Fallback to database if ES fails or returns no data
+        if not navs:
+            db_navs = FundHistoricalNAV.objects.filter(
+                isin_growth=isin, date__gte=start_date, date__lte=today
+            ).order_by('date')
+            if not db_navs.exists():
+                return Response({
+                    "statusCode": 404,
+                    "errorMessage": f"No NAV data found for given fund and period."
+                })
+            navs = [
+                {"date": nav.date, "nav": Decimal(nav.nav)}
+                for nav in db_navs
+            ]
 
         units = Decimal('0')
         invested_dates = []
@@ -82,9 +152,9 @@ class HistoricalProfitView(APIView):
             sip_count = 0
 
             while dt <= redemption_date:
-                nav = navs.filter(date__gte=dt).order_by('date').first()
+                nav = next((n for n in navs if n["date"] >= dt), None)
                 if nav:
-                    nav_val = Decimal(nav.nav)
+                    nav_val = nav["nav"]
                     # Use the correct SIP amount for this month!
                     units_bought = amount_for_this_step / nav_val
                     total_units += units_bought
@@ -92,7 +162,7 @@ class HistoricalProfitView(APIView):
 
                     # For XIRR and corpus calculation, make sure to use amount_for_this_step (could differ at step-up)
                     units += units_bought
-                    invested_dates.append(nav.date)
+                    invested_dates.append(nav["date"])
                     cashflows.append(-amount_for_this_step)
                     abs_invested += amount_for_this_step
 
@@ -100,7 +170,7 @@ class HistoricalProfitView(APIView):
                     profit = corpus_val - invested_so_far
 
                     monthly_growth.append({
-                        "date": nav.date,
+                        "date": nav["date"],
                         "invested": round(float(invested_so_far), 2),
                         "corpus": round(float(corpus_val), 2),
                         "profit": round(float(profit), 2),
@@ -131,14 +201,14 @@ class HistoricalProfitView(APIView):
         cashflows.append(corpus_now)
         invested_dates.append(redemption_date)
 
-        print([(d, cf) for d, cf in zip(invested_dates, cashflows)])
         expected_profit = corpus_now - abs_invested
         absolute_return = float((expected_profit / abs_invested * 100)) if abs_invested else None
-        print([(d, cf) for d, cf in zip(invested_dates, cashflows)])
+
         # Calculate XIRR
         try:
             xirr_val = xirr(cashflows, invested_dates)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"XIRR calculation failed: {traceback.format_exc()}")
             xirr_val = None
 
         # To add the last line of current day's profit to monthly_growth
@@ -169,11 +239,12 @@ class HistoricalProfitView(APIView):
             # Example build purchase_records from your SIP logic:
             for d, cf in zip(invested_dates, cashflows):
                 if cf < 0:  # Purchase cash flow
-                    units_bought = -(cf) / Decimal(navs.get(date=d).nav)  # Inverse of cashflow/nav
+                    nav_val = next((n["nav"] for n in navs if n["date"] == d), None)
+                    units_bought = -(cf) / nav_val if nav_val else Decimal('0')
                     purchase_records.append({
                         "units": units_bought,
                         "purchase_date": d,
-                        "purchase_nav": Decimal(navs.get(date=d).nav),
+                        "purchase_nav": nav_val,
                         "amount": -cf,
                     })
 
@@ -189,5 +260,6 @@ class HistoricalProfitView(APIView):
                 "xirr": xirr_val,
                 "monthly_growth": monthly_growth,
                 "tax_results": tax_results,
+                "fund_details": fund_data,
             }
         })
