@@ -3,6 +3,7 @@ from rest_framework.views import exception_handler
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 
+
 def custom_exception_handler(exc, context):
     response = exception_handler(exc, context)
 
@@ -20,11 +21,8 @@ def custom_exception_handler(exc, context):
             message = msg[0]
         else:
             message = str(msg)
-        
-        response.data = {
-            'statusCode': 400,
-            'errorMessage': message
-        }
+
+        response.data = {"statusCode": 400, "errorMessage": message}
         # This ensures all ValidationErrors look uniform
 
     return response

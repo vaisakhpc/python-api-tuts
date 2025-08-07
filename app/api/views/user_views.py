@@ -9,12 +9,14 @@ from django.core.mail import send_mail
 from django.conf import settings
 from api.views.user_registration_view import send_registration_email
 
+
 class UserViewSet(viewsets.ViewSet):
     """
     A ViewSet for listing, creating, updating, and deleting users.
     """
 
     permission_classes = [IsActiveUser]
+
     def list(self, request):
         # GET /users/ or GET /users/?email=...
         email = request.query_params.get("email")
@@ -42,7 +44,10 @@ class UserViewSet(viewsets.ViewSet):
         # Send registration email (only for newly created users)
         send_registration_email(user)
 
-        return Response({"result": "success", "data": serializer.data}, status=status.HTTP_201_CREATED)
+        return Response(
+            {"result": "success", "data": serializer.data},
+            status=status.HTTP_201_CREATED,
+        )
 
     def update(self, request, pk=None):
         # PUT /users/<pk>/
@@ -64,27 +69,38 @@ class UserViewSet(viewsets.ViewSet):
         # DELETE /users/<pk>/
         user = get_object_or_404(User, pk=pk)
         user.delete()
-        return Response({"result": "success", "message": "User deleted"}, status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            {"result": "success", "message": "User deleted"},
+            status=status.HTTP_204_NO_CONTENT,
+        )
 
-    @action(detail=False, methods=['put'], url_path='update_by_email')
+    @action(detail=False, methods=["put"], url_path="update_by_email")
     def update_by_email(self, request):
         # PUT /users/update_by_email/?email=...
         email = request.query_params.get("email")
         if not email:
-            return Response({"result": "error", "message": "Email parameter is missing"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"result": "error", "message": "Email parameter is missing"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         user = get_object_or_404(User, email=email)
         serializer = UserSerializer(user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response({"result": "success", "data": serializer.data})
 
-    @action(detail=False, methods=['delete'], url_path='delete_by_email')
+    @action(detail=False, methods=["delete"], url_path="delete_by_email")
     def delete_by_email(self, request):
         # DELETE /users/delete_by_email/?email=...
         email = request.query_params.get("email")
         if not email:
-            return Response({"result": "error", "message": "Email parameter is missing"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"result": "error", "message": "Email parameter is missing"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         user = get_object_or_404(User, email=email)
         user.delete()
-        return Response({"result": "success", "message": "User deleted"}, status=status.HTTP_204_NO_CONTENT)
-    
+        return Response(
+            {"result": "success", "message": "User deleted"},
+            status=status.HTTP_204_NO_CONTENT,
+        )

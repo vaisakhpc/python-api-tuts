@@ -6,20 +6,20 @@ from time import sleep
 
 BATCH_SIZE = 10
 
+
 class Command(BaseCommand):
     help = "Update kuvera_name for MutualFunds where kuvera_name is null or blank. Mark invalid ISINs with 'N/A' to skip in future."
 
     def handle(self, *args, **kwargs):
         while True:
             # Query funds with empty or null kuvera_name, excluding blank isin_growth
-            funds = (
-                MutualFund.objects
-                .filter(models.Q(kuvera_name__isnull=True) | models.Q(kuvera_name=''))
-                .exclude(isin_growth__exact='')
-                [:BATCH_SIZE]
-            )
+            funds = MutualFund.objects.filter(
+                models.Q(kuvera_name__isnull=True) | models.Q(kuvera_name="")
+            ).exclude(isin_growth__exact="")[:BATCH_SIZE]
             if not funds:
-                self.stdout.write(self.style.SUCCESS("All funds processed for kuvera_name update!"))
+                self.stdout.write(
+                    self.style.SUCCESS("All funds processed for kuvera_name update!")
+                )
                 break
 
             for fund in funds:
@@ -34,7 +34,7 @@ class Command(BaseCommand):
                     data = resp.json()
 
                     if "error" in data:
-                        self._mark_na(fund, isin, data['error'])
+                        self._mark_na(fund, isin, data["error"])
                         continue
 
                     kuvera_name = None
@@ -51,7 +51,11 @@ class Command(BaseCommand):
                     if kuvera_name:
                         fund.kuvera_name = kuvera_name
                         fund.save(update_fields=["kuvera_name"])
-                        self.stdout.write(self.style.SUCCESS(f"ISIN {isin}: KuveraName → {kuvera_name}"))
+                        self.stdout.write(
+                            self.style.SUCCESS(
+                                f"ISIN {isin}: KuveraName → {kuvera_name}"
+                            )
+                        )
                     else:
                         self._mark_na(fund, isin, "No 'name' field in API response")
 
@@ -62,4 +66,6 @@ class Command(BaseCommand):
         # Mark kuvera_name as 'N/A' to skip on future runs
         fund.kuvera_name = "N/A"
         fund.save(update_fields=["kuvera_name"])
-        self.stdout.write(self.style.WARNING(f"ISIN {isin}: {reason}. Marking as 'N/A'."))
+        self.stdout.write(
+            self.style.WARNING(f"ISIN {isin}: {reason}. Marking as 'N/A'.")
+        )

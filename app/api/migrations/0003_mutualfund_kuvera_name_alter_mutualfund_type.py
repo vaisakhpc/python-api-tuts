@@ -4,20 +4,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0002_user_is_active_user_password_user_reset_code_and_more'),
+        ("api", "0002_user_is_active_user_password_user_reset_code_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='mutualfund',
-            name='kuvera_name',
+            model_name="mutualfund",
+            name="kuvera_name",
             field=models.CharField(blank=True, max_length=255, null=True),
         ),
         migrations.AlterField(
-            model_name='mutualfund',
-            name='type',
+            model_name="mutualfund",
+            name="type",
             field=models.CharField(blank=True, max_length=50, null=True),
         ),
     ]

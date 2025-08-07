@@ -4,6 +4,7 @@ from collections import defaultdict
 from django.utils.timezone import now
 from api.models import FundHistoricalNAV, EquityTaxRates, MutualFund
 
+
 def calculate_equity_capital_gains(
     fund: MutualFund,
     purchase_records: list,  # List of dicts or objects with keys: 'units', 'purchase_date', 'purchase_nav', 'amount'
@@ -27,20 +28,22 @@ def calculate_equity_capital_gains(
             - 'stcg': {'gain': Decimal, 'taxable_gain': Decimal, 'tax': Decimal}
     """
     # Check if fund type contains 'Equity' (case-insensitive)
-    if not fund.type or 'equity' not in fund.type.lower():
+    if not fund.type or "equity" not in fund.type.lower():
         return {
             "error": "Fund is not eligible for Equity capital gains calculation (type missing or not Equity)."
         }
 
     # Use latest NAV date if not provided
     if sell_date is None:
-        latest_nav =fund.latest_nav
+        latest_nav = fund.latest_nav
         if not latest_nav:
             return {"error": "No NAV data found for the fund to determine sell date."}
         sell_date = fund.latest_nav_date
         sell_nav_val = Decimal(latest_nav)
     else:
-        nav_entry = FundHistoricalNAV.objects.filter(isin_growth=fund.isin_growth, date=sell_date).first()
+        nav_entry = FundHistoricalNAV.objects.filter(
+            isin_growth=fund.isin_growth, date=sell_date
+        ).first()
         if not nav_entry:
             return {"error": f"No NAV on specified sell_date: {sell_date}"}
         sell_nav_val = Decimal(nav_entry.nav)
@@ -55,16 +58,16 @@ def calculate_equity_capital_gains(
         return {"error": f"No equity tax rates configured for year {year}."}
 
     # Accumulators
-    ltcg_gain = Decimal('0')
-    stcg_gain = Decimal('0')
-    ltcg_loss = Decimal('0')
-    stcg_loss = Decimal('0')
+    ltcg_gain = Decimal("0")
+    stcg_gain = Decimal("0")
+    ltcg_loss = Decimal("0")
+    stcg_loss = Decimal("0")
 
     # Calculate capital gains per purchase lot
     for rec in purchase_records:
-        units = Decimal(rec['units'])
-        purchase_date = rec['purchase_date']
-        purchase_nav = Decimal(rec['purchase_nav'])
+        units = Decimal(rec["units"])
+        purchase_date = rec["purchase_date"]
+        purchase_nav = Decimal(rec["purchase_nav"])
         # amount = Decimal(rec['amount'])  # Not used directly here, but useful for reference
 
         # Compute holding period and gain
@@ -91,17 +94,17 @@ def calculate_equity_capital_gains(
     # If STCL > STCG, offset remaining STCL against LTCG
     if net_stcg < 0:
         net_ltcg += net_stcg  # net_stcg is negative, so this reduces net_ltcg
-        net_stcg = Decimal('0')
+        net_stcg = Decimal("0")
 
     # Apply LTCG exemption and calculate tax
     ltcg_exempt = rates.ltcg_exemption_limit
-    taxable_ltcg = max(net_ltcg - ltcg_exempt, Decimal('0'))
-    ltcg_tax = taxable_ltcg * rates.ltcg_rate_percent / Decimal('100')
+    taxable_ltcg = max(net_ltcg - ltcg_exempt, Decimal("0"))
+    ltcg_tax = taxable_ltcg * rates.ltcg_rate_percent / Decimal("100")
 
     # Apply STCG exemption (if any) and calculate tax
-    stcg_exempt = getattr(rates, 'stcg_exemption_limit', Decimal('0')) or Decimal('0')
-    taxable_stcg = max(net_stcg - stcg_exempt, Decimal('0'))
-    stcg_tax = taxable_stcg * rates.stcg_rate_percent / Decimal('100')
+    stcg_exempt = getattr(rates, "stcg_exemption_limit", Decimal("0")) or Decimal("0")
+    taxable_stcg = max(net_stcg - stcg_exempt, Decimal("0"))
+    stcg_tax = taxable_stcg * rates.stcg_rate_percent / Decimal("100")
 
     return {
         "ltcg": {
@@ -109,14 +112,14 @@ def calculate_equity_capital_gains(
             "taxable_gain": round(float(taxable_ltcg), 2),
             "tax": round(float(ltcg_tax), 2),
             "exemption_limit": float(ltcg_exempt),
-            "rate_percent": float(rates.ltcg_rate_percent)
+            "rate_percent": float(rates.ltcg_rate_percent),
         },
         "stcg": {
             "gain": round(float(net_stcg), 2),
             "taxable_gain": round(float(taxable_stcg), 2),
             "tax": round(float(stcg_tax), 2),
             "exemption_limit": float(stcg_exempt),
-            "rate_percent": float(rates.stcg_rate_percent)
+            "rate_percent": float(rates.stcg_rate_percent),
         },
         "sell_date": sell_date.isoformat(),
     }

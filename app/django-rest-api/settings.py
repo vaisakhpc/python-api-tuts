@@ -24,7 +24,9 @@ DEBUG = int(environ.get("DEBUG", default=1))
 
 # 'DJANGO_ALLOWED_HOSTS' should be a single string of hosts with a space between each.
 # For example: 'DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]'
-ALLOWED_HOSTS = environ.get("DJANGO_ALLOWED_HOSTS", "DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]").split(" ")
+ALLOWED_HOSTS = environ.get(
+    "DJANGO_ALLOWED_HOSTS", "DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]"
+).split(" ")
 
 # Application definition
 
@@ -36,7 +38,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
-    'rest_framework_simplejwt',
+    "rest_framework_simplejwt",
     "drf_yasg",
     "api",
 ]
@@ -125,68 +127,66 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
-    'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',
-    ),
-    'EXCEPTION_HANDLER': 'api.utils.exception_handler.custom_exception_handler',
-    'DEFAULT_RENDERER_CLASSES': [
-        'api.utils.renderer.EnvelopeJSONRenderer',
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "EXCEPTION_HANDLER": "api.utils.exception_handler.custom_exception_handler",
+    "DEFAULT_RENDERER_CLASSES": [
+        "api.utils.renderer.EnvelopeJSONRenderer",
     ],
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=4),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=100),
-    'AUTH_HEADER_TYPES': ('Bearer',),
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=4),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=100),
+    "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'mailhog'  # or 'localhost' if running MailHog outside Docker
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "mailhog"  # or 'localhost' if running MailHog outside Docker
 EMAIL_PORT = 1025
-DEFAULT_FROM_EMAIL = 'no-reply@example.com'
+DEFAULT_FROM_EMAIL = "no-reply@example.com"
 ELASTICSEARCH_HOST = "http://elasticsearch:9200"
 
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-            'datefmt': '%Y-%m-%d %H:%M:%S',
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
         },
     },
-    'handlers': {
-        'file_debug': {
-            'level': 'DEBUG',
-            'class': 'logging.FileHandler',
-            'filename': 'logs/django_debug.log',  # File for debug-level logs
-            'formatter': 'verbose',  # Use the verbose formatter
+    "handlers": {
+        "file_debug": {
+            "level": "DEBUG",
+            "class": "logging.FileHandler",
+            "filename": "logs/django_debug.log",  # File for debug-level logs
+            "formatter": "verbose",  # Use the verbose formatter
         },
-        'file_warning': {
-            'level': 'WARNING',
-            'class': 'logging.FileHandler',
-            'filename': 'logs/django_warning.log',  # File for warning-level logs
-            'formatter': 'verbose',  # Use the verbose formatter
+        "file_warning": {
+            "level": "WARNING",
+            "class": "logging.FileHandler",
+            "filename": "logs/django_warning.log",  # File for warning-level logs
+            "formatter": "verbose",  # Use the verbose formatter
         },
     },
-    'loggers': {
-        'django': {
-            'handlers': ['file_debug', 'file_warning'],  # Send logs to both handlers
-            'level': 'DEBUG',
-            'propagate': True,
+    "loggers": {
+        "django": {
+            "handlers": ["file_debug", "file_warning"],  # Send logs to both handlers
+            "level": "DEBUG",
+            "propagate": True,
         },
-        'api.serializers': {  # Logger for your serializer module
-            'handlers': ['file_debug', 'file_warning'],  # Send logs to both handlers
-            'level': 'DEBUG',
-            'propagate': False,
+        "api.serializers": {  # Logger for your serializer module
+            "handlers": ["file_debug", "file_warning"],  # Send logs to both handlers
+            "level": "DEBUG",
+            "propagate": False,
         },
-        'api.views': {  # Logger for your views module
-            'handlers': ['file_debug', 'file_warning'],  # Send logs to both handlers
-            'level': 'DEBUG',
-            'propagate': False,
+        "api.views": {  # Logger for your views module
+            "handlers": ["file_debug", "file_warning"],  # Send logs to both handlers
+            "level": "DEBUG",
+            "propagate": False,
         },
     },
 }

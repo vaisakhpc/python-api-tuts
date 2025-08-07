@@ -7,75 +7,134 @@ import django.utils.timezone
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('api', '0001_initial'),
+        ("api", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='user',
-            name='is_active',
+            model_name="user",
+            name="is_active",
             field=models.BooleanField(default=False),
         ),
         migrations.AddField(
-            model_name='user',
-            name='password',
+            model_name="user",
+            name="password",
             field=models.CharField(blank=True, max_length=128),
         ),
         migrations.AddField(
-            model_name='user',
-            name='reset_code',
+            model_name="user",
+            name="reset_code",
             field=models.CharField(blank=True, max_length=64, null=True),
         ),
         migrations.CreateModel(
-            name='MutualFund',
+            name="MutualFund",
             fields=[
-                ('id', models.AutoField(primary_key=True, serialize=False)),
-                ('mf_name', models.CharField(max_length=255)),
-                ('mf_schema_code', models.IntegerField()),
-                ('start_date', models.DateField()),
-                ('AUM', models.DecimalField(decimal_places=2, max_digits=20)),
-                ('exit_load', models.CharField(max_length=255)),
-                ('expense_ratio', models.DecimalField(decimal_places=2, max_digits=5)),
-                ('type', models.CharField(choices=[('Debt', 'Debt'), ('Equity', 'Equity'), ('Hybrid', 'Hybrid'), ('Others', 'Others')], max_length=10)),
-                ('latest_nav', models.DecimalField(blank=True, decimal_places=4, max_digits=20, null=True)),
-                ('latest_nav_date', models.DateField(blank=True, null=True)),
-                ('isin_growth', models.CharField(blank=True, max_length=20, null=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('nav_last_updated', models.DateTimeField(blank=True, null=True)),
-                ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='created_mutualfunds', to=settings.AUTH_USER_MODEL)),
+                ("id", models.AutoField(primary_key=True, serialize=False)),
+                ("mf_name", models.CharField(max_length=255)),
+                ("mf_schema_code", models.IntegerField()),
+                ("start_date", models.DateField()),
+                ("AUM", models.DecimalField(decimal_places=2, max_digits=20)),
+                ("exit_load", models.CharField(max_length=255)),
+                ("expense_ratio", models.DecimalField(decimal_places=2, max_digits=5)),
+                (
+                    "type",
+                    models.CharField(
+                        choices=[
+                            ("Debt", "Debt"),
+                            ("Equity", "Equity"),
+                            ("Hybrid", "Hybrid"),
+                            ("Others", "Others"),
+                        ],
+                        max_length=10,
+                    ),
+                ),
+                (
+                    "latest_nav",
+                    models.DecimalField(
+                        blank=True, decimal_places=4, max_digits=20, null=True
+                    ),
+                ),
+                ("latest_nav_date", models.DateField(blank=True, null=True)),
+                ("isin_growth", models.CharField(blank=True, max_length=20, null=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("nav_last_updated", models.DateTimeField(blank=True, null=True)),
+                (
+                    "created_by",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="created_mutualfunds",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='MFHolding',
+            name="MFHolding",
             fields=[
-                ('id', models.AutoField(primary_key=True, serialize=False)),
-                ('type', models.CharField(choices=[('BUY', 'Buy'), ('SELL', 'Sell')], default='BUY', max_length=4)),
-                ('units', models.DecimalField(decimal_places=4, default=0, max_digits=18)),
-                ('nav', models.DecimalField(decimal_places=4, default=0, max_digits=12)),
-                ('transacted_at', models.DateField(default=django.utils.timezone.now)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('fund', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='holdings', to='api.mutualfund')),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='holdings', to='api.user')),
+                ("id", models.AutoField(primary_key=True, serialize=False)),
+                (
+                    "type",
+                    models.CharField(
+                        choices=[("BUY", "Buy"), ("SELL", "Sell")],
+                        default="BUY",
+                        max_length=4,
+                    ),
+                ),
+                (
+                    "units",
+                    models.DecimalField(decimal_places=4, default=0, max_digits=18),
+                ),
+                (
+                    "nav",
+                    models.DecimalField(decimal_places=4, default=0, max_digits=12),
+                ),
+                ("transacted_at", models.DateField(default=django.utils.timezone.now)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "fund",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="holdings",
+                        to="api.mutualfund",
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="holdings",
+                        to="api.user",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['user', 'fund', 'transacted_at', 'id'],
+                "ordering": ["user", "fund", "transacted_at", "id"],
             },
         ),
         migrations.CreateModel(
-            name='FundHistoricalNAV',
+            name="FundHistoricalNAV",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('isin_growth', models.CharField(max_length=20)),
-                ('date', models.DateField()),
-                ('nav', models.DecimalField(decimal_places=4, max_digits=20)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("isin_growth", models.CharField(max_length=20)),
+                ("date", models.DateField()),
+                ("nav", models.DecimalField(decimal_places=4, max_digits=20)),
             ],
             options={
-                'unique_together': {('isin_growth', 'date')},
+                "unique_together": {("isin_growth", "date")},
             },
         ),
     ]

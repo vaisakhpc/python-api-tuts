@@ -6,37 +6,89 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0004_alter_mutualfund_expense_ratio'),
+        ("api", "0004_alter_mutualfund_expense_ratio"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='IncomeTaxYear',
+            name="IncomeTaxYear",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('year', models.PositiveIntegerField(help_text='Tax year (e.g., 2025)', unique=True)),
-                ('exemption_limit', models.DecimalField(decimal_places=2, default=Decimal('0.00'), help_text='Annual total income exemption limit', max_digits=15)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "year",
+                    models.PositiveIntegerField(
+                        help_text="Tax year (e.g., 2025)", unique=True
+                    ),
+                ),
+                (
+                    "exemption_limit",
+                    models.DecimalField(
+                        decimal_places=2,
+                        default=Decimal("0.00"),
+                        help_text="Annual total income exemption limit",
+                        max_digits=15,
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Income Tax Year',
-                'verbose_name_plural': 'Income Tax Years',
-                'ordering': ['year'],
+                "verbose_name": "Income Tax Year",
+                "verbose_name_plural": "Income Tax Years",
+                "ordering": ["year"],
             },
         ),
         migrations.CreateModel(
-            name='IncomeTaxSlab',
+            name="IncomeTaxSlab",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('upper_income_limit', models.DecimalField(blank=True, decimal_places=2, help_text='Upper income limit for this slab. Null if no upper limit (top slab)', max_digits=15, null=True)),
-                ('tax_rate_percent', models.DecimalField(decimal_places=2, help_text='Tax rate (percentage) for this slab', max_digits=5)),
-                ('tax_year', models.ForeignKey(help_text='Tax year this slab belongs to', on_delete=django.db.models.deletion.CASCADE, related_name='slabs', to='api.incometaxyear')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "upper_income_limit",
+                    models.DecimalField(
+                        blank=True,
+                        decimal_places=2,
+                        help_text="Upper income limit for this slab. Null if no upper limit (top slab)",
+                        max_digits=15,
+                        null=True,
+                    ),
+                ),
+                (
+                    "tax_rate_percent",
+                    models.DecimalField(
+                        decimal_places=2,
+                        help_text="Tax rate (percentage) for this slab",
+                        max_digits=5,
+                    ),
+                ),
+                (
+                    "tax_year",
+                    models.ForeignKey(
+                        help_text="Tax year this slab belongs to",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="slabs",
+                        to="api.incometaxyear",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Income Tax Slab',
-                'verbose_name_plural': 'Income Tax Slabs',
-                'ordering': ['upper_income_limit'],
+                "verbose_name": "Income Tax Slab",
+                "verbose_name_plural": "Income Tax Slabs",
+                "ordering": ["upper_income_limit"],
             },
         ),
     ]

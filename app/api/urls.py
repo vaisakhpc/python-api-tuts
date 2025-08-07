@@ -14,19 +14,29 @@ from api.views.historical_profit_view import HistoricalProfitView
 from api.views.transaction_import_view import TransactionImportView
 
 urlpatterns = [
-    path('users/', include('api.routes.user_urls')),
-    path('token/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('user/resend-registration/', ResendRegistrationEmailView.as_view()),
-    path('user/set-password/', SetPasswordView.as_view()),
-    path('user/token/', UserTokenObtainView.as_view()),
-    path('user/token/refresh/', UserTokenRefreshView.as_view()),
-    path('mutualfunds/search/', MutualFundSearchView.as_view(), name='mutualfund-search'),
-    path('mutualfund/<str:isin_growth>/', MutualFundDetailView.as_view(), name='mf-detail-by-isin'),
-    path('mutualfund/code/<int:mf_scheme_code>/', MutualFundDetailView.as_view(), name='mf-detail-by-code'),
-    path('', include('api.routes.mf_urls')),
-    path('fetch-funds/', FetchMutualFundsView.as_view(), name='fetch-mutual-funds'),
-    path('portfolio-returns/', PortfolioReturnsView.as_view()),
-    path('historical-profit/', HistoricalProfitView.as_view()),
-    path('import-transactions/', TransactionImportView.as_view()),
+    path("users/", include("api.routes.user_urls")),
+    path("token/", MyTokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("user/resend-registration/", ResendRegistrationEmailView.as_view()),
+    path("user/set-password/", SetPasswordView.as_view()),
+    path("user/token/", UserTokenObtainView.as_view()),
+    path("user/token/refresh/", UserTokenRefreshView.as_view()),
+    path(
+        "mutualfunds/search/", MutualFundSearchView.as_view(), name="mutualfund-search"
+    ),
+    path(
+        "mutualfund/<str:isin_growth>/",
+        MutualFundDetailView.as_view(),
+        name="mf-detail-by-isin",
+    ),
+    path(
+        "mutualfund/code/<int:mf_scheme_code>/",
+        MutualFundDetailView.as_view(),
+        name="mf-detail-by-code",
+    ),
+    path("", include("api.routes.mf_urls")),
+    path("fetch-funds/", FetchMutualFundsView.as_view(), name="fetch-mutual-funds"),
+    path("portfolio-returns/", PortfolioReturnsView.as_view()),
+    path("historical-profit/", HistoricalProfitView.as_view()),
+    path("import-transactions/", TransactionImportView.as_view()),
 ]

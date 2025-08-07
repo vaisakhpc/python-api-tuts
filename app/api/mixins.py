@@ -2,12 +2,13 @@
 from rest_framework.pagination import PageNumberPagination
 from urllib.parse import urlencode, urlparse, parse_qs, urlunparse
 
+
 class PaginationMixin:
     pagination_class = PageNumberPagination
 
     @property
     def paginator(self):
-        if not hasattr(self, '_paginator'):
+        if not hasattr(self, "_paginator"):
             if self.pagination_class is None:
                 self._paginator = None
             else:
@@ -22,7 +23,7 @@ class PaginationMixin:
     def get_paginated_response(self, data):
         assert self.paginator is not None
         return self.paginator.get_paginated_response(data)
-    
+
     def get_es_pagination_params(self, request):
         """
         Get pagination parameters for Elasticsearch queries.
@@ -36,7 +37,7 @@ class PaginationMixin:
         size = page_size
 
         return from_, size
-    
+
     def paginate_es_results(self, es_response, request):
         """
         Paginate Elasticsearch results.
@@ -47,7 +48,7 @@ class PaginationMixin:
         # Get pagination parameters
         page_size = self.paginator.get_page_size(request)
         page_number = int(request.query_params.get(self.paginator.page_query_param, 1))
-        
+
         # Extract _source from hits
         hits = es_response["hits"]["hits"]
         results = [hit["_source"] for hit in hits]
@@ -61,7 +62,7 @@ class PaginationMixin:
         return {
             "results": results,
             "count": total,
-            "current_count": current_count, 
+            "current_count": current_count,
             "next": next_link,
             "previous": previous_link,
         }
@@ -74,7 +75,9 @@ class PaginationMixin:
             return None
         url = request.build_absolute_uri()
         next_page = (start // size) + 2
-        return self._replace_query_param(url, self.paginator.page_query_param, next_page)
+        return self._replace_query_param(
+            url, self.paginator.page_query_param, next_page
+        )
 
     def _get_previous_link(self, request, start, size):
         """
@@ -83,8 +86,10 @@ class PaginationMixin:
         if start <= 0:
             return None
         url = request.build_absolute_uri()
-        previous_page = (start // size)
-        return self._replace_query_param(url, self.paginator.page_query_param, previous_page)
+        previous_page = start // size
+        return self._replace_query_param(
+            url, self.paginator.page_query_param, previous_page
+        )
 
     def _replace_query_param(self, url, key, val):
         """

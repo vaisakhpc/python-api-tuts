@@ -3,18 +3,21 @@ import random
 from datetime import date, timedelta
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAdminUser  # restrict to admin, change as needed
+from rest_framework.permissions import (
+    IsAdminUser,
+)  # restrict to admin, change as needed
 
 from api.models import MutualFund
 
-FUND_TYPE_CHOICES = ['Debt', 'Equity', 'Hybrid', 'Others']
+FUND_TYPE_CHOICES = ["Debt", "Equity", "Hybrid", "Others"]
+
 
 class FetchMutualFundsView(APIView):
     permission_classes = [IsAdminUser]  # Only admin users allowed; adjust if needed
 
     def post(self, request):
         # Fetch schemes
-        url = 'https://api.mfapi.in/mf'
+        url = "https://api.mfapi.in/mf"
         api_response = requests.get(url)
         funds = api_response.json()
         total_funds = len(funds)
@@ -36,13 +39,15 @@ class FetchMutualFundsView(APIView):
                 skipped_isin += 1
                 continue
 
-            mf_schema_code = int(fund['schemeCode'])
+            mf_schema_code = int(fund["schemeCode"])
             if MutualFund.objects.filter(mf_schema_code=mf_schema_code).exists():
                 skipped += 1
                 continue
 
-            mf_name = fund['schemeName']
-            fund_start_date = START_DATE + timedelta(days=gap * (idx - skipped_isin - skipped))
+            mf_name = fund["schemeName"]
+            fund_start_date = START_DATE + timedelta(
+                days=gap * (idx - skipped_isin - skipped)
+            )
             if fund_start_date > END_DATE:
                 fund_start_date = END_DATE
 
@@ -51,7 +56,7 @@ class FetchMutualFundsView(APIView):
             exit_load = f"{exit_load_value}%"
             expense_ratio = round(random.uniform(0, 1), 2)
             type_choice = random.choice(FUND_TYPE_CHOICES)
-            isin_growth = fund['isinGrowth']
+            isin_growth = fund["isinGrowth"]
             created_by_id = random.choice([1, 2])
 
             MutualFund.objects.create(
@@ -67,9 +72,11 @@ class FetchMutualFundsView(APIView):
             )
             created += 1
 
-        return Response({
-            "total_funds_from_api": total_funds,
-            "created": created,
-            "already_existing": skipped,
-            "skipped_due_to_missing_isinGrowth": skipped_isin,
-        })
+        return Response(
+            {
+                "total_funds_from_api": total_funds,
+                "created": created,
+                "already_existing": skipped,
+                "skipped_due_to_missing_isinGrowth": skipped_isin,
+            }
+        )

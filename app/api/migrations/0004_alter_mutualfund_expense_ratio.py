@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0003_mutualfund_kuvera_name_alter_mutualfund_type'),
+        ("api", "0003_mutualfund_kuvera_name_alter_mutualfund_type"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='mutualfund',
-            name='expense_ratio',
+            model_name="mutualfund",
+            name="expense_ratio",
             field=models.TextField(blank=True, null=True),
         ),
     ]

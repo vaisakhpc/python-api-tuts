@@ -7,25 +7,45 @@ from django.db import models, IntegrityError
 
 BATCH_SIZE = 10
 
+
 class Command(BaseCommand):
-    help = 'Updates NAV and stores historical NAVs in a separate table.'
+    help = "Updates NAV and stores historical NAVs in a separate table."
 
     def handle(self, *args, **kwargs):
         updated_total, failed_total, deleted_total = 0, 0, 0
-        while True:
-            today_start = timezone.localtime(timezone.now()).replace(
-                hour=0, minute=0, second=0, microsecond=0
+        today_start = timezone.localtime(timezone.now()).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        ten_days_ago = timezone.localdate() - timedelta(days=10)
+
+        total_funds = (
+            MutualFund.objects.filter(isin_growth__isnull=False)
+            .exclude(isin_growth="")
+            .filter(
+                models.Q(nav_last_updated__lt=today_start)
+                | models.Q(nav_last_updated__isnull=True)
             )
-            ten_days_ago = timezone.localdate() - timedelta(days=10)
-            funds = MutualFund.objects.filter(
-                isin_growth__isnull=False
-            ).exclude(
-                isin_growth=''
-            ).filter(
-                models.Q(nav_last_updated__lt=today_start) | models.Q(nav_last_updated__isnull=True)
-            ).filter(
-                models.Q(latest_nav_date__gte=ten_days_ago) | models.Q(latest_nav_date__isnull=True)
-            )[:BATCH_SIZE]
+            .filter(
+                models.Q(latest_nav_date__gte=ten_days_ago)
+                | models.Q(latest_nav_date__isnull=True)
+            )
+            .count()
+        )
+        fund_counter = 0
+
+        while True:
+            funds = (
+                MutualFund.objects.filter(isin_growth__isnull=False)
+                .exclude(isin_growth="")
+                .filter(
+                    models.Q(nav_last_updated__lt=today_start)
+                    | models.Q(nav_last_updated__isnull=True)
+                )
+                .filter(
+                    models.Q(latest_nav_date__gte=ten_days_ago)
+                    | models.Q(latest_nav_date__isnull=True)
+                )[:BATCH_SIZE]
+            )
 
             if not funds:
                 self.stdout.write(
@@ -35,6 +55,7 @@ class Command(BaseCommand):
 
             updated, failed, deleted = 0, 0, 0
             for fund in funds:
+                fund_counter += 1  # Increment for each fund processed
                 try:
                     url = f"https://api.mfapi.in/mf/{fund.mf_schema_code}"
                     resp = requests.get(url, timeout=12)
@@ -54,19 +75,21 @@ class Command(BaseCommand):
 
                     # Parse latest NAV/date (from DD-MM-YYYY)
                     nav_date = datetime.strptime(latest_nav_date_str, "%d-%m-%Y").date()
-                    nav = nav_val = float(latest_nav_val_str.replace(',', ''))
+                    nav = nav_val = float(latest_nav_val_str.replace(",", ""))
                     last_updated = fund.nav_last_updated  # Can be None!
-                    
+
                     # Store historical NAVs
                     for entry in historical_nav:
                         # entry: {'date': '24-07-2025', 'nav': '52.18300'}
-                        dt_str = entry.get('date')
-                        nav_str = entry.get('nav')
+                        dt_str = entry.get("date")
+                        nav_str = entry.get("nav")
                         if not (dt_str and nav_str):
                             continue  # skip incomplete entries
                         try:
                             dt_obj = datetime.strptime(dt_str, "%d-%m-%Y").date()
-                            nav_val = float(nav_str.replace(',', ''))  # in case commas present
+                            nav_val = float(
+                                nav_str.replace(",", "")
+                            )  # in case commas present
                         except Exception:
                             continue  # skip malformed data
                         if last_updated and dt_obj <= last_updated.date():
@@ -75,20 +98,24 @@ class Command(BaseCommand):
                             FundHistoricalNAV.objects.get_or_create(
                                 isin_growth=fund.isin_growth,
                                 date=dt_obj,
-                                defaults={'nav': nav_val}
+                                defaults={"nav": nav_val},
                             )
                         except IntegrityError:
                             # Already exists
                             pass
 
                     # Optionally save yesterday's NAV
-                    if fund.latest_nav is not None and fund.latest_nav_date and nav_date:
+                    if (
+                        fund.latest_nav is not None
+                        and fund.latest_nav_date
+                        and nav_date
+                    ):
                         latest_fund_date = fund.latest_nav_date
                         if latest_fund_date < nav_date:
                             FundHistoricalNAV.objects.get_or_create(
                                 isin_growth=fund.isin_growth,
                                 date=latest_fund_date,
-                                defaults={'nav': fund.latest_nav}
+                                defaults={"nav": fund.latest_nav},
                             )
 
                     # Update or delete
@@ -96,10 +123,16 @@ class Command(BaseCommand):
                         fund.latest_nav = nav
                         fund.latest_nav_date = nav_date
                         fund.nav_last_updated = timezone.now()
-                        fund.save(update_fields=['latest_nav', 'latest_nav_date', 'nav_last_updated'])
+                        fund.save(
+                            update_fields=[
+                                "latest_nav",
+                                "latest_nav_date",
+                                "nav_last_updated",
+                            ]
+                        )
                         updated += 1
                         self.stdout.write(
-                            f"Updated {fund.mf_name}: NAV={nav} Date={nav_date} ISIN={fund.isin_growth}"
+                            f"Fund {fund_counter}/{total_funds} Updated {fund.mf_name}: NAV={nav} Date={nav_date} ISIN={fund.isin_growth}"
                         )
                     else:
                         fund.delete()
@@ -109,7 +142,9 @@ class Command(BaseCommand):
                         deleted += 1
                 except Exception as e:
                     failed += 1
-                    self.stderr.write(f"Error updating {fund.mf_name} (ISIN: {fund.isin_growth}): {e}")
+                    self.stderr.write(
+                        f"Error updating {fund.mf_name} (ISIN: {fund.isin_growth}): {e}"
+                    )
 
             updated_total += updated
             failed_total += failed

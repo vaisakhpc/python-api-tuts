@@ -5,27 +5,75 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0005_incometaxyear_incometaxslab'),
+        ("api", "0005_incometaxyear_incometaxslab"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='EquityTaxRates',
+            name="EquityTaxRates",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('year', models.PositiveIntegerField(help_text='Financial year (e.g., 2025)', unique=True)),
-                ('ltcg_rate_percent', models.DecimalField(decimal_places=2, help_text='LTCG Tax Rate (%) for equities', max_digits=5)),
-                ('stcg_rate_percent', models.DecimalField(decimal_places=2, help_text='STCG Tax Rate (%) for equities', max_digits=5)),
-                ('ltcg_exemption_limit', models.DecimalField(decimal_places=2, default=Decimal('125000.00'), help_text='Exemption for LTCG (annual, e.g., 1.25L)', max_digits=10)),
-                ('stcg_exemption_limit', models.DecimalField(decimal_places=2, default=Decimal('0.00'), help_text='Exemption for STCG (annual, default 0 unless law changes)', max_digits=10)),
-                ('ltcg_holding_period_days', models.PositiveIntegerField(default=365, help_text='Minimum holding period in days for LTCG on equities')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "year",
+                    models.PositiveIntegerField(
+                        help_text="Financial year (e.g., 2025)", unique=True
+                    ),
+                ),
+                (
+                    "ltcg_rate_percent",
+                    models.DecimalField(
+                        decimal_places=2,
+                        help_text="LTCG Tax Rate (%) for equities",
+                        max_digits=5,
+                    ),
+                ),
+                (
+                    "stcg_rate_percent",
+                    models.DecimalField(
+                        decimal_places=2,
+                        help_text="STCG Tax Rate (%) for equities",
+                        max_digits=5,
+                    ),
+                ),
+                (
+                    "ltcg_exemption_limit",
+                    models.DecimalField(
+                        decimal_places=2,
+                        default=Decimal("125000.00"),
+                        help_text="Exemption for LTCG (annual, e.g., 1.25L)",
+                        max_digits=10,
+                    ),
+                ),
+                (
+                    "stcg_exemption_limit",
+                    models.DecimalField(
+                        decimal_places=2,
+                        default=Decimal("0.00"),
+                        help_text="Exemption for STCG (annual, default 0 unless law changes)",
+                        max_digits=10,
+                    ),
+                ),
+                (
+                    "ltcg_holding_period_days",
+                    models.PositiveIntegerField(
+                        default=365,
+                        help_text="Minimum holding period in days for LTCG on equities",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Equity Tax Rates',
-                'verbose_name_plural': 'Equity Tax Rates',
-                'ordering': ['year'],
+                "verbose_name": "Equity Tax Rates",
+                "verbose_name_plural": "Equity Tax Rates",
+                "ordering": ["year"],
             },
         ),
     ]

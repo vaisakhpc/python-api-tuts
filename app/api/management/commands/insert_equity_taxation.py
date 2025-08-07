@@ -8,10 +8,10 @@ class Command(BaseCommand):
 
     def handle(self, *args, **kwargs):
         year = 2025
-        ltcg_rate = Decimal('12.5')
-        stcg_rate = Decimal('20')
-        ltcg_exemption = Decimal('125000')
-        stcg_exemption = Decimal('0')
+        ltcg_rate = Decimal("12.5")
+        stcg_rate = Decimal("20")
+        ltcg_exemption = Decimal("125000")
+        stcg_exemption = Decimal("0")
         holding_period_days = 365
 
         # Delete existing records for year if any (optional)

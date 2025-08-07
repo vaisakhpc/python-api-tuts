@@ -238,7 +238,9 @@ class UserTestCase(APITestCase):
         self.create_test_user()
         data = self.data
         data["email"] = "email@example.com"
-        response = self.client.put("/api/users/update?email=wrong_email@example.com", data)
+        response = self.client.put(
+            "/api/users/update?email=wrong_email@example.com", data
+        )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     # ----------------- DELETE -----------------

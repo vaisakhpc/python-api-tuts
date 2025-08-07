@@ -1,6 +1,7 @@
 # api/utils/renderer.py
 from rest_framework.renderers import JSONRenderer
 
+
 class EnvelopeJSONRenderer(JSONRenderer):
     """
     Renders the response as:
@@ -10,11 +11,14 @@ class EnvelopeJSONRenderer(JSONRenderer):
         "errorMessage": <optional, if applicable>
     }
     """
+
     def render(self, data, accepted_media_type=None, renderer_context=None):
         response = renderer_context.get("response", None) if renderer_context else None
-        status_code = (response.status_code
-                       if response and hasattr(response, "status_code")
-                       else 200)
+        status_code = (
+            response.status_code
+            if response and hasattr(response, "status_code")
+            else 200
+        )
         envelope = {
             "statusCode": status_code,
         }

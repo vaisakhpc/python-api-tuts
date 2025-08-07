@@ -7,6 +7,7 @@ from datetime import datetime
 
 BATCH_SIZE = 10
 
+
 def parse_date(date_str):
     if not date_str:
         return None
@@ -16,6 +17,7 @@ def parse_date(date_str):
         except ValueError:
             continue
     return None
+
 
 def parse_expense_ratio_history(api_data):
     """
@@ -39,17 +41,28 @@ def parse_expense_ratio_history(api_data):
     else:
         return []
 
+
 class Command(BaseCommand):
-    help = "Update start_date, expense_ratio (as JSON list), and aum for all MutualFunds."
+    help = (
+        "Update start_date, expense_ratio (as JSON list), and aum for all MutualFunds."
+    )
 
     def handle(self, *args, **kwargs):
         exclude_isins = set()
         updated_isins = set()
-        
+
         while True:
-            funds = MutualFund.objects.exclude(isin_growth__in=exclude_isins).exclude(isin_growth__in=updated_isins).exclude(isin_growth__exact='').exclude(kuvera_name__isnull=True).exclude(kuvera_name__exact='N/A')[:BATCH_SIZE]
+            funds = (
+                MutualFund.objects.exclude(isin_growth__in=exclude_isins)
+                .exclude(isin_growth__in=updated_isins)
+                .exclude(isin_growth__exact="")
+                .exclude(kuvera_name__isnull=True)
+                .exclude(kuvera_name__exact="N/A")[:BATCH_SIZE]
+            )
             if not funds:
-                self.stdout.write(self.style.SUCCESS("All funds processed for metadata update!"))
+                self.stdout.write(
+                    self.style.SUCCESS("All funds processed for metadata update!")
+                )
                 break
 
             for fund in funds:
@@ -58,12 +71,18 @@ class Command(BaseCommand):
                 try:
                     resp = requests.get(url, timeout=8)
                     if resp.status_code == 404:
-                        self.stdout.write(self.style.WARNING(f"ISIN {isin}: 404 Not found. Skipped."))
+                        self.stdout.write(
+                            self.style.WARNING(f"ISIN {isin}: 404 Not found. Skipped.")
+                        )
                         exclude_isins.add(isin)
                         continue
                     data = resp.json()
                     if "error" in data:
-                        self.stdout.write(self.style.WARNING(f"ISIN {isin}: {data['error']}. Skipped."))
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"ISIN {isin}: {data['error']}. Skipped."
+                            )
+                        )
                         exclude_isins.add(isin)
                         continue
 
@@ -74,31 +93,45 @@ class Command(BaseCommand):
                         api_fund = data
 
                     if not api_fund:
-                        self.stdout.write(self.style.WARNING(f"ISIN {isin}: No valid fund data in API response. Skipped."))
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"ISIN {isin}: No valid fund data in API response. Skipped."
+                            )
+                        )
                         exclude_isins.add(isin)
                         continue
 
                     # Parse fields
                     existing_expense_ratio_json = fund.expense_ratio or "[]"
                     try:
-                        existing_expense_ratio_list = json.loads(existing_expense_ratio_json)
+                        existing_expense_ratio_list = json.loads(
+                            existing_expense_ratio_json
+                        )
                     except Exception:
                         existing_expense_ratio_list = []
-    
+
                     new_expense_ratio_list = parse_expense_ratio_history(api_fund)
-                    combined_expense_ratio_list = existing_expense_ratio_list + new_expense_ratio_list
+                    combined_expense_ratio_list = (
+                        existing_expense_ratio_list + new_expense_ratio_list
+                    )
                     unique_dict = {}
                     for entry in combined_expense_ratio_list:
-                        key = entry.get('date')
+                        key = entry.get("date")
                         if key:
                             unique_dict[key] = entry
                     combined_expense_ratio_list = list(unique_dict.values())
-                    expense_ratio_json = json.dumps(combined_expense_ratio_list) if combined_expense_ratio_list else None
-                    
+                    expense_ratio_json = (
+                        json.dumps(combined_expense_ratio_list)
+                        if combined_expense_ratio_list
+                        else None
+                    )
+
                     start_date_val = parse_date(api_fund.get("start_date"))
                     aum_val = None
                     try:
-                        aum_val = float(api_fund.get("aum", api_fund.get("aum_in_crores", 0)))  # adjust keys as per API
+                        aum_val = float(
+                            api_fund.get("aum", api_fund.get("aum_in_crores", 0))
+                        )  # adjust keys as per API
                     except Exception:
                         aum_val = None
 
@@ -117,11 +150,17 @@ class Command(BaseCommand):
                     if updated_fields:
                         fund.save(update_fields=updated_fields)
                         updated_isins.add(isin)
-                        self.stdout.write(self.style.SUCCESS(
-                            f"ISIN {isin}: Updated fields: {', '.join(updated_fields)}"
-                        ))
+                        self.stdout.write(
+                            self.style.SUCCESS(
+                                f"ISIN {isin}: Updated fields: {', '.join(updated_fields)}"
+                            )
+                        )
                     else:
-                        self.stdout.write(self.style.WARNING(f"ISIN {isin}: No fields updated (empty API data)."))
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"ISIN {isin}: No fields updated (empty API data)."
+                            )
+                        )
 
                 except Exception as e:
                     self.stderr.write(f"Error for ISIN {isin}: {e}")
@@ -129,5 +168,8 @@ class Command(BaseCommand):
                 sleep(0.2)
 
         if exclude_isins:
-                self.stdout.write(self.style.WARNING(
-                    f"Skipping {len(exclude_isins)} invalid ISIN(s): {', '.join(sorted(exclude_isins))}"))
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Skipping {len(exclude_isins)} invalid ISIN(s): {', '.join(sorted(exclude_isins))}"
+                )
+            )

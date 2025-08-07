@@ -5,11 +5,8 @@ NAV_INDEX_MAPPING = {
             "isin": {"type": "keyword"},
             "last_updated_date": {"type": "date"},
             "history": {
-                "type": "nested", # Use 'nested' to query array objects independently
-                "properties": {
-                    "date": {"type": "date"},
-                    "nav": {"type": "float"}
-                }
+                "type": "nested",  # Use 'nested' to query array objects independently
+                "properties": {"date": {"type": "date"}, "nav": {"type": "float"}},
             },
             "returns": {
                 "type": "object",
@@ -19,9 +16,9 @@ NAV_INDEX_MAPPING = {
                     "xirr_3y": {"type": "float"},
                     "xirr_5y": {"type": "float"},
                     "xirr_10y": {"type": "float"},
-                    "xirr_all": {"type": "float"}
-                }
-            }
+                    "xirr_all": {"type": "float"},
+                },
+            },
         }
     }
 }
@@ -48,9 +45,9 @@ MUTUALFUND_INDEX_MAPPING = {
                     "xirr_3y": {"type": "float"},
                     "xirr_5y": {"type": "float"},
                     "xirr_10y": {"type": "float"},
-                    "xirr_all": {"type": "float"}
-                }
-            }
+                    "xirr_all": {"type": "float"},
+                },
+            },
         }
     }
 }

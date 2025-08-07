@@ -55,7 +55,8 @@ def get_users(request):
         # Check for empty email parameter
         if not email:
             return Response(
-                {"result": "error", "message": "Email parameter is missing"}, status=status.HTTP_400_BAD_REQUEST
+                {"result": "error", "message": "Email parameter is missing"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Return requested user
@@ -66,7 +67,10 @@ def get_users(request):
 
         # Catch Http404 raised by get_object_or_404() if user is not found
         except Http404:
-            return Response({"result": "error", "message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"result": "error", "message": "User not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
     # Return all users
     try:
@@ -76,7 +80,10 @@ def get_users(request):
 
     # Catch unexpected errors and return a 500 response
     except Exception as e:
-        return Response({"result": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(
+            {"result": "error", "message": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
 
 @swagger_auto_schema(
@@ -86,9 +93,15 @@ def get_users(request):
     request_body=openapi.Schema(
         type=openapi.TYPE_OBJECT,
         properties={
-            "name": openapi.Schema(type=openapi.TYPE_STRING, description="Name of the user"),
-            "email": openapi.Schema(type=openapi.TYPE_STRING, description="Email of the user"),
-            "age": openapi.Schema(type=openapi.TYPE_INTEGER, description="Age of the user"),
+            "name": openapi.Schema(
+                type=openapi.TYPE_STRING, description="Name of the user"
+            ),
+            "email": openapi.Schema(
+                type=openapi.TYPE_STRING, description="Email of the user"
+            ),
+            "age": openapi.Schema(
+                type=openapi.TYPE_INTEGER, description="Age of the user"
+            ),
         },
         required=["name", "email", "age"],
     ),
@@ -112,15 +125,23 @@ def add_user(request):
         serializer = UserSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response({"result": "success", "data": serializer.data}, status=status.HTTP_201_CREATED)
+        return Response(
+            {"result": "success", "data": serializer.data},
+            status=status.HTTP_201_CREATED,
+        )
 
     # Catch validation errors and return a 400 response
     except ValidationError as e:
-        return Response({"result": "error", "message": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"result": "error", "message": e.detail}, status=status.HTTP_400_BAD_REQUEST
+        )
 
     # Catch unexpected errors and return a 500 response
     except Exception as e:
-        return Response({"result": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(
+            {"result": "error", "message": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
 
 @swagger_auto_schema(
@@ -131,14 +152,21 @@ def add_user(request):
     request_body=openapi.Schema(
         type=openapi.TYPE_OBJECT,
         properties={
-            "name": openapi.Schema(type=openapi.TYPE_STRING, description="Update the name of the user"),
-            "age": openapi.Schema(type=openapi.TYPE_INTEGER, description="Update the age of the user"),
+            "name": openapi.Schema(
+                type=openapi.TYPE_STRING, description="Update the name of the user"
+            ),
+            "age": openapi.Schema(
+                type=openapi.TYPE_INTEGER, description="Update the age of the user"
+            ),
         },
         required=["name", "age"],
     ),
     manual_parameters=[
         openapi.Parameter(
-            "email", openapi.IN_QUERY, description="Email of the user to update", type=openapi.TYPE_STRING
+            "email",
+            openapi.IN_QUERY,
+            description="Email of the user to update",
+            type=openapi.TYPE_STRING,
         )
     ],
     responses={
@@ -162,7 +190,8 @@ def update_user(request):
     # Check for empty email parameter
     if not email:
         return Response(
-            {"result": "error", "message": "Email parameter is missing"}, status=status.HTTP_400_BAD_REQUEST
+            {"result": "error", "message": "Email parameter is missing"},
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     # Try to get the user by email
@@ -174,24 +203,37 @@ def update_user(request):
 
     # Catch Http404 raised by get_object_or_404() if user is not found
     except Http404:
-        return Response({"result": "error", "message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response(
+            {"result": "error", "message": "User not found"},
+            status=status.HTTP_404_NOT_FOUND,
+        )
 
     # Catch unexpected errors and return a 500 response
     except Exception as e:
-        return Response({"result": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(
+            {"result": "error", "message": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
     # Try to update the user
     try:
         serializer = UserSerializer(user, data=request_data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response({"result": "success", "data": serializer.data}, status=status.HTTP_200_OK)
+        return Response(
+            {"result": "success", "data": serializer.data}, status=status.HTTP_200_OK
+        )
     # Catch validation errors and return a 400 response
     except ValidationError as e:
-        return Response({"result": "error", "message": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"result": "error", "message": e.detail}, status=status.HTTP_400_BAD_REQUEST
+        )
     # Catch unexpected errors and return a 500 response
     except Exception as e:
-        return Response({"result": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(
+            {"result": "error", "message": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
 
 @swagger_auto_schema(
@@ -200,7 +242,10 @@ def update_user(request):
     operation_description="API endpoint that deletes an existing user record by email",
     manual_parameters=[
         openapi.Parameter(
-            "email", openapi.IN_QUERY, description="Email of the user to be deleted", type=openapi.TYPE_STRING
+            "email",
+            openapi.IN_QUERY,
+            description="Email of the user to be deleted",
+            type=openapi.TYPE_STRING,
         )
     ],
     responses={
@@ -224,19 +269,29 @@ def delete_user(request):
     # Check for empty email parameter
     if not email:
         return Response(
-            {"result": "error", "message": "Email parameter is missing"}, status=status.HTTP_400_BAD_REQUEST
+            {"result": "error", "message": "Email parameter is missing"},
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     # Delete user
     try:
         user = get_object_or_404(User, email=email)
         user.delete()
-        return Response({"result": "success", "message": "User deleted"}, status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            {"result": "success", "message": "User deleted"},
+            status=status.HTTP_204_NO_CONTENT,
+        )
 
     # Catch Http404 raised by get_object_or_404() if user is not found
     except Http404:
-        return Response({"result": "error", "message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response(
+            {"result": "error", "message": "User not found"},
+            status=status.HTTP_404_NOT_FOUND,
+        )
 
     # Catch unexpected errors and return a 500 response
     except Exception as e:
-        return Response({"result": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(
+            {"result": "error", "message": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
