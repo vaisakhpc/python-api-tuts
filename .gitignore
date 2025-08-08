@@ -5,3 +5,6 @@ db.sqlite3
 __pycache__/
 logs/
 !logs/.gitkeep
+frontend/node_modules/
+frontend/dist/
+frontend/.env

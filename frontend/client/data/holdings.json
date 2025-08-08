@@ -1,0 +1,122 @@
+[
+  {
+    "fundId": 1,
+    "fundName": "HDFC Top 100 Fund",
+    "currentPrice": 1247.89,
+    "totalQuantity": 250,
+    "totalCurrentValue": 311972.5,
+    "totalInvestedValue": 290000,
+    "totalGainLoss": 21972.5,
+    "totalGainLossPercent": 7.58,
+    "transactions": [
+      {
+        "id": 1,
+        "type": "BUY",
+        "quantity": 100,
+        "price": 1200.50,
+        "date": "2023-01-15",
+        "value": 120050
+      },
+      {
+        "id": 2,
+        "type": "BUY",
+        "quantity": 50,
+        "price": 1180.25,
+        "date": "2023-02-15",
+        "value": 59012.5
+      },
+      {
+        "id": 3,
+        "type": "BUY",
+        "quantity": 100,
+        "price": 1109.375,
+        "date": "2023-03-15",
+        "value": 110937.5
+      }
+    ]
+  },
+  {
+    "fundId": 2,
+    "fundName": "ICICI Prudential Bluechip Fund",
+    "currentPrice": 1056.78,
+    "totalQuantity": 200,
+    "totalCurrentValue": 211356,
+    "totalInvestedValue": 185000,
+    "totalGainLoss": 26356,
+    "totalGainLossPercent": 14.25,
+    "transactions": [
+      {
+        "id": 4,
+        "type": "BUY",
+        "quantity": 150,
+        "price": 950.25,
+        "date": "2023-03-22",
+        "value": 142537.5
+      },
+      {
+        "id": 5,
+        "type": "BUY",
+        "quantity": 50,
+        "price": 849.25,
+        "date": "2023-05-10",
+        "value": 42462.5
+      }
+    ]
+  },
+  {
+    "fundId": 3,
+    "fundName": "SBI Small Cap Fund",
+    "currentPrice": 2485.60,
+    "totalQuantity": 125,
+    "totalCurrentValue": 310700,
+    "totalInvestedValue": 285000,
+    "totalGainLoss": 25700,
+    "totalGainLossPercent": 9.02,
+    "transactions": [
+      {
+        "id": 6,
+        "type": "BUY",
+        "quantity": 75,
+        "price": 2100.00,
+        "date": "2023-06-10",
+        "value": 157500
+      },
+      {
+        "id": 7,
+        "type": "BUY",
+        "quantity": 50,
+        "price": 2550.00,
+        "date": "2023-08-15",
+        "value": 127500
+      }
+    ]
+  },
+  {
+    "fundId": 6,
+    "fundName": "DSP BlackRock Micro Cap Fund",
+    "currentPrice": 3125.89,
+    "totalQuantity": 30,
+    "totalCurrentValue": 93776.7,
+    "totalInvestedValue": 85000,
+    "totalGainLoss": 8776.7,
+    "totalGainLossPercent": 10.32,
+    "transactions": [
+      {
+        "id": 8,
+        "type": "BUY",
+        "quantity": 20,
+        "price": 2800.00,
+        "date": "2023-09-05",
+        "value": 56000
+      },
+      {
+        "id": 9,
+        "type": "BUY",
+        "quantity": 10,
+        "price": 2900.00,
+        "date": "2023-10-12",
+        "value": 29000
+      }
+    ]
+  }
+]

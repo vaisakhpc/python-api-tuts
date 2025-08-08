@@ -70,7 +70,7 @@ class MFHoldingViewSet(
             paginated_fund_ids = paginator.paginate_queryset(
                 fund_ids, request, view=self
             )
-            print(f"Paginated Fund IDs: {paginated_fund_ids}")
+
             if not paginated_fund_ids:
                 return paginator.get_paginated_response([])
 

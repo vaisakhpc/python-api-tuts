@@ -27,6 +27,9 @@ class MutualFund(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     nav_last_updated = models.DateTimeField(null=True, blank=True)
     kuvera_name = models.CharField(max_length=255, null=True, blank=True)
+    kuvera_slug = models.CharField(max_length=255, null=True, blank=True)
+    slug = models.CharField(max_length=255, null=True, blank=True)
+    category = models.CharField(max_length=50, null=True, blank=True)
 
     def __str__(self):
         return self.mf_name

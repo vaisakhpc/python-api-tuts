@@ -2,7 +2,7 @@ import json
 from django.core.management.base import BaseCommand
 from api.models import MutualFund
 import requests
-from time import sleep
+from time import time
 from datetime import datetime
 
 BATCH_SIZE = 10
@@ -48,9 +48,22 @@ class Command(BaseCommand):
     )
 
     def handle(self, *args, **kwargs):
+        # Record the start time
+        start_time = time()
         exclude_isins = set()
         updated_isins = set()
+        total_funds = MutualFund.objects.exclude(
+            isin_growth__exact=""
+        ).exclude(
+            kuvera_name__isnull=True
+        ).exclude(
+            kuvera_name__exact="N/A"
+        ).count()
+        
+        self.stdout.write(self.style.WARNING(f"Total funds to process: {total_funds}"))
 
+        processed_count = 0
+        
         while True:
             funds = (
                 MutualFund.objects.exclude(isin_growth__in=exclude_isins)
@@ -66,6 +79,11 @@ class Command(BaseCommand):
                 break
 
             for fund in funds:
+                processed_count += 1
+                self.stdout.write(
+                    self.style.WARNING(f"Processing {processed_count}/{total_funds}")
+                )
+                
                 isin = fund.isin_growth
                 url = f"https://mf.captnemo.in/kuvera/{isin}"
                 try:
@@ -146,6 +164,12 @@ class Command(BaseCommand):
                     if aum_val is not None:
                         fund.AUM = aum_val
                         updated_fields.append("AUM")
+                    if api_fund.get("fund_type"):
+                        fund.type = api_fund["fund_type"]
+                        updated_fields.append("type")
+                    if api_fund.get("fund_category"):
+                        fund.category = api_fund["fund_category"]
+                        updated_fields.append("category")
 
                     if updated_fields:
                         fund.save(update_fields=updated_fields)
@@ -164,9 +188,22 @@ class Command(BaseCommand):
 
                 except Exception as e:
                     self.stderr.write(f"Error for ISIN {isin}: {e}")
+        
+        # Record the end time
+        end_time = time()
+        elapsed_time = end_time - start_time
+        # Calculate elapsed time in minutes and seconds
+        elapsed_minutes = int(elapsed_time // 60)  # Get the total minutes
+        elapsed_seconds = int(elapsed_time % 60)  # Get the remaining seconds
 
-                sleep(0.2)
-
+        # Display the total time taken in minutes and seconds
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Script completed in {elapsed_minutes} minutes and {elapsed_seconds} seconds. "
+                f"Total processed: {processed_count}/{total_funds}"
+            )
+        )
+        
         if exclude_isins:
             self.stdout.write(
                 self.style.WARNING(

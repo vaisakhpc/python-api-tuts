@@ -18,6 +18,7 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from drf_yasg import openapi
 from drf_yasg.views import get_schema_view
+from .views import portfolio_view
 
 schema_view = get_schema_view(
     openapi.Info(
@@ -34,5 +35,7 @@ urlpatterns = [
     # API
     path("api/", include("api.urls")),
     # Documentation
-    path("", schema_view.with_ui("swagger", cache_timeout=0), name="schema-swagger-ui"),
+    path("", portfolio_view, name='portfolio'),
+    re_path(r"^(?!api/).*", portfolio_view, name="frontend"),  # Catch-all for React Router
+
 ]

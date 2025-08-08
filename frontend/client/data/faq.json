@@ -1,0 +1,92 @@
+[
+  {
+    "id": 1,
+    "category": "Getting Started",
+    "question": "How do I get started with InFolio?",
+    "answer": "Getting started is simple! Just register for a free account, add your mutual fund holdings either manually or by importing a CSV file, and start tracking your portfolio performance. You can explore funds using our screener tool and monitor your investments in real-time."
+  },
+  {
+    "id": 2,
+    "category": "Getting Started",
+    "question": "Is InFolio free to use?",
+    "answer": "Yes, InFolio offers a comprehensive free tier that includes portfolio tracking, fund screening, performance analysis, and basic reporting features. We also offer premium plans with advanced analytics and additional features."
+  },
+  {
+    "id": 3,
+    "category": "Portfolio Management",
+    "question": "How do I add my mutual fund holdings?",
+    "answer": "You can add holdings in two ways: 1) Manually by clicking 'Add Transaction' and entering fund details, or 2) Bulk import using a CSV file. For CSV import, use the format: fund_name, transaction_type, quantity, price, date."
+  },
+  {
+    "id": 4,
+    "category": "Portfolio Management",
+    "question": "Can I track SIP investments?",
+    "answer": "Absolutely! InFolio supports multiple transactions per fund, making it perfect for tracking SIP (Systematic Investment Plan) investments. Each SIP installment is recorded as a separate transaction, and we automatically calculate your average cost and total returns."
+  },
+  {
+    "id": 5,
+    "category": "Portfolio Management",
+    "question": "How do I edit or delete transactions?",
+    "answer": "Click on any fund in your holdings to expand and view all transactions. Each transaction has edit and delete buttons. You can modify quantity, price, and date, but transaction type (BUY/SELL) cannot be changed for data integrity."
+  },
+  {
+    "id": 6,
+    "category": "Data & Security",
+    "question": "How accurate is the fund data?",
+    "answer": "We source our data from reliable financial data providers and update NAV prices regularly throughout trading hours. Historical performance data is sourced from official fund houses and verified for accuracy."
+  },
+  {
+    "id": 7,
+    "category": "Data & Security",
+    "question": "Is my financial data secure?",
+    "answer": "Yes, we use bank-grade security with end-to-end encryption. Your data is stored securely, and we never store sensitive banking information. We follow industry-standard security practices and compliance requirements."
+  },
+  {
+    "id": 8,
+    "category": "Data & Security",
+    "question": "Can I export my data?",
+    "answer": "Yes, you can export your portfolio data as a CSV file at any time. This includes all your transactions, current holdings, and performance metrics. Go to Holdings > Export CSV to download your data."
+  },
+  {
+    "id": 9,
+    "category": "Features",
+    "question": "What is the Fund Screener?",
+    "answer": "The Fund Screener helps you discover mutual funds based on your criteria. You can filter by fund type, category, AUM, returns, and risk rating. Sort by performance metrics and compare funds side-by-side to make informed investment decisions."
+  },
+  {
+    "id": 10,
+    "category": "Features",
+    "question": "How do I read the performance charts?",
+    "answer": "Performance charts show NAV movement over time. Hover over any point to see exact NAV and date. Use time range buttons (1M, 3M, 6M, 1Y, All) to focus on specific periods. Green indicates gains, red indicates losses from your investment."
+  },
+  {
+    "id": 11,
+    "category": "Features",
+    "question": "What do the risk ratings mean?",
+    "answer": "Risk ratings range from 'Very Low' to 'Very High' based on fund volatility and investment strategy. Very Low: Government bonds, Low: Corporate bonds, Moderate: Large cap equity, High: Mid cap equity, Very High: Small cap equity."
+  },
+  {
+    "id": 12,
+    "category": "Technical Support",
+    "question": "The app is not loading properly. What should I do?",
+    "answer": "Try refreshing the page or clearing your browser cache. If the issue persists, try using a different browser or incognito mode. For persistent issues, contact our support team with details about your browser and device."
+  },
+  {
+    "id": 13,
+    "category": "Technical Support",
+    "question": "Can I use InFolio on mobile devices?",
+    "answer": "Yes! InFolio is fully responsive and works great on mobile devices through your web browser. We're also working on dedicated mobile apps for iOS and Android."
+  },
+  {
+    "id": 14,
+    "category": "Account & Billing",
+    "question": "How do I update my profile information?",
+    "answer": "Go to your Profile page using the user icon in the top navigation. You can update your personal information, change your password, and manage account settings from there."
+  },
+  {
+    "id": 15,
+    "category": "Account & Billing",
+    "question": "How do I delete my account?",
+    "answer": "If you wish to delete your account, please contact our support team. We'll help you export your data first and then permanently delete your account as per your request. This action cannot be undone."
+  }
+]

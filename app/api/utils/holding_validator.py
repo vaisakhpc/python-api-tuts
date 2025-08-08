@@ -73,6 +73,7 @@ def validate_nav_and_sales(data, fund, user, instance=None):
     units = Decimal(data["units"])
     txn_type = data["type"]
 
+    # NAV validation
     nav_obj = fetch_nav_from_es_or_db(fund, tx_date)
     historical_nav = Decimal(nav_obj.nav)
     TOLERANCE = Decimal("0.1")

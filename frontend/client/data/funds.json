@@ -1,0 +1,409 @@
+[
+  {
+    "id": 1,
+    "name": "HDFC Top 100 Fund",
+    "type": "Equity",
+    "subtype": "Large Cap",
+    "aum": 15000,
+    "expenseRatio": 1.05,
+    "returns": {
+      "1Y": 12.5,
+      "3Y": 15.2,
+      "5Y": 14.8,
+      "10Y": 13.9
+    },
+    "riskRating": "Moderate",
+    "fundManager": "Prashant Jain",
+    "benchmark": "S&P BSE 100 TRI",
+    "inceptionDate": "1996-06-10",
+    "minInvestment": 500,
+    "exitLoad": "1% if redeemed within 365 days",
+    "nav": 1247.89,
+    "description": "The scheme aims to provide long-term capital appreciation by investing primarily in equity and equity related securities of companies forming part of BSE 100 index or expected to be included in BSE 100 index.",
+    "topHoldings": [
+      { "name": "Reliance Industries Ltd", "allocation": 8.2 },
+      { "name": "ICICI Bank Ltd", "allocation": 6.5 },
+      { "name": "HDFC Bank Ltd", "allocation": 6.1 },
+      { "name": "Infosys Ltd", "allocation": 5.8 },
+      { "name": "Tata Consultancy Services", "allocation": 5.3 },
+      { "name": "ITC Ltd", "allocation": 4.9 },
+      { "name": "Kotak Mahindra Bank", "allocation": 4.2 },
+      { "name": "Hindustan Unilever Ltd", "allocation": 3.8 },
+      { "name": "Axis Bank Ltd", "allocation": 3.6 },
+      { "name": "Larsen & Toubro Ltd", "allocation": 3.4 }
+    ],
+    "sectorAllocation": [
+      { "sector": "Financial Services", "allocation": 32.5 },
+      { "sector": "Information Technology", "allocation": 18.2 },
+      { "sector": "Consumer Goods", "allocation": 12.8 },
+      { "sector": "Energy", "allocation": 10.4 },
+      { "sector": "Healthcare", "allocation": 8.7 },
+      { "sector": "Industrials", "allocation": 7.9 },
+      { "sector": "Materials", "allocation": 5.2 },
+      { "sector": "Others", "allocation": 4.3 }
+    ],
+    "performanceData": [
+      { "period": "2023", "return": 12.5, "benchmark": 11.8 },
+      { "period": "2022", "return": 8.3, "benchmark": 7.9 },
+      { "period": "2021", "return": 24.1, "benchmark": 23.5 },
+      { "period": "2020", "return": 15.2, "benchmark": 14.7 },
+      { "period": "2019", "return": 6.8, "benchmark": 6.2 }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "ICICI Prudential Bluechip Fund",
+    "type": "Equity", 
+    "subtype": "Large Cap",
+    "aum": 18500,
+    "expenseRatio": 1.25,
+    "returns": {
+      "1Y": 11.8,
+      "3Y": 14.6,
+      "5Y": 13.2,
+      "10Y": 12.8
+    },
+    "riskRating": "Moderate",
+    "fundManager": "Sankaran Naren",
+    "benchmark": "S&P BSE 100 TRI",
+    "inceptionDate": "2008-05-05",
+    "minInvestment": 5000,
+    "exitLoad": "1% if redeemed within 365 days",
+    "nav": 1056.78,
+    "description": "To generate long-term capital appreciation from a diversified portfolio of equity and equity related securities primarily of large-cap companies.",
+    "topHoldings": [
+      { "name": "ICICI Bank Ltd", "allocation": 9.1 },
+      { "name": "Reliance Industries Ltd", "allocation": 8.7 },
+      { "name": "HDFC Bank Ltd", "allocation": 7.2 },
+      { "name": "Infosys Ltd", "allocation": 6.9 },
+      { "name": "Tata Consultancy Services", "allocation": 6.1 },
+      { "name": "Bharti Airtel Ltd", "allocation": 4.8 },
+      { "name": "Kotak Mahindra Bank", "allocation": 4.5 },
+      { "name": "ITC Ltd", "allocation": 4.2 },
+      { "name": "Hindustan Unilever Ltd", "allocation": 3.9 },
+      { "name": "Axis Bank Ltd", "allocation": 3.7 }
+    ],
+    "sectorAllocation": [
+      { "sector": "Financial Services", "allocation": 35.2 },
+      { "sector": "Information Technology", "allocation": 19.8 },
+      { "sector": "Consumer Goods", "allocation": 11.5 },
+      { "sector": "Energy", "allocation": 9.8 },
+      { "sector": "Telecommunications", "allocation": 7.9 },
+      { "sector": "Healthcare", "allocation": 6.2 },
+      { "sector": "Industrials", "allocation": 5.4 },
+      { "sector": "Others", "allocation": 4.2 }
+    ],
+    "performanceData": [
+      { "period": "2023", "return": 11.8, "benchmark": 11.8 },
+      { "period": "2022", "return": 7.1, "benchmark": 7.9 },
+      { "period": "2021", "return": 22.8, "benchmark": 23.5 },
+      { "period": "2020", "return": 14.1, "benchmark": 14.7 },
+      { "period": "2019", "return": 5.9, "benchmark": 6.2 }
+    ]
+  },
+  {
+    "id": 3,
+    "name": "SBI Small Cap Fund",
+    "type": "Equity",
+    "subtype": "Small Cap", 
+    "aum": 8200,
+    "expenseRatio": 1.75,
+    "returns": {
+      "1Y": 18.2,
+      "3Y": 22.1,
+      "5Y": 19.5,
+      "10Y": 16.8
+    },
+    "riskRating": "High",
+    "fundManager": "R. Srinivasan",
+    "benchmark": "S&P BSE 250 SmallCap TRI",
+    "inceptionDate": "2013-09-24",
+    "minInvestment": 5000,
+    "exitLoad": "1% if redeemed within 365 days",
+    "nav": 2485.60,
+    "description": "To provide long term capital appreciation by investing predominantly in equity and equity related securities of small cap companies.",
+    "topHoldings": [
+      { "name": "Polycab India Ltd", "allocation": 4.8 },
+      { "name": "Dixon Technologies Ltd", "allocation": 4.2 },
+      { "name": "Amber Enterprises Ltd", "allocation": 3.9 },
+      { "name": "Crompton Greaves Consumer", "allocation": 3.7 },
+      { "name": "Astral Ltd", "allocation": 3.5 },
+      { "name": "Balkrishna Industries", "allocation": 3.2 },
+      { "name": "Fine Organic Industries", "allocation": 3.0 },
+      { "name": "Solar Industries India", "allocation": 2.9 },
+      { "name": "Schaeffler India Ltd", "allocation": 2.8 },
+      { "name": "JK Cement Ltd", "allocation": 2.7 }
+    ],
+    "sectorAllocation": [
+      { "sector": "Industrials", "allocation": 28.5 },
+      { "sector": "Consumer Goods", "allocation": 22.8 },
+      { "sector": "Materials", "allocation": 15.2 },
+      { "sector": "Information Technology", "allocation": 12.4 },
+      { "sector": "Healthcare", "allocation": 8.9 },
+      { "sector": "Financial Services", "allocation": 6.7 },
+      { "sector": "Energy", "allocation": 3.2 },
+      { "sector": "Others", "allocation": 2.3 }
+    ],
+    "performanceData": [
+      { "period": "2023", "return": 18.2, "benchmark": 16.9 },
+      { "period": "2022", "return": 12.8, "benchmark": 11.5 },
+      { "period": "2021", "return": 35.6, "benchmark": 33.2 },
+      { "period": "2020", "return": 28.9, "benchmark": 26.4 },
+      { "period": "2019", "return": 8.7, "benchmark": 9.1 }
+    ]
+  },
+  {
+    "id": 4,
+    "name": "Axis Midcap Fund",
+    "type": "Equity",
+    "subtype": "Mid Cap",
+    "aum": 12000,
+    "expenseRatio": 1.65,
+    "returns": {
+      "1Y": 15.3,
+      "3Y": 18.7,
+      "5Y": 16.9,
+      "10Y": 15.1
+    },
+    "riskRating": "Moderately High",
+    "fundManager": "Shreyash Devalkar",
+    "benchmark": "NIFTY Midcap 150 TRI",
+    "inceptionDate": "2011-01-01",
+    "minInvestment": 5000,
+    "exitLoad": "1% if redeemed within 365 days",
+    "nav": 1845.32,
+    "description": "To generate long-term capital appreciation from a diversified portfolio of equity and equity related securities primarily of mid-cap companies.",
+    "topHoldings": [
+      { "name": "Max Healthcare Institute", "allocation": 5.2 },
+      { "name": "Tube Investments of India", "allocation": 4.8 },
+      { "name": "Persistent Systems Ltd", "allocation": 4.5 },
+      { "name": "Lemon Tree Hotels Ltd", "allocation": 4.1 },
+      { "name": "Sundaram Finance Ltd", "allocation": 3.9 },
+      { "name": "L&T Technology Services", "allocation": 3.7 },
+      { "name": "Mahindra Logistics Ltd", "allocation": 3.4 },
+      { "name": "Godrej Properties Ltd", "allocation": 3.2 },
+      { "name": "JM Financial Ltd", "allocation": 3.0 },
+      { "name": "CRISIL Ltd", "allocation": 2.9 }
+    ],
+    "sectorAllocation": [
+      { "sector": "Financial Services", "allocation": 24.8 },
+      { "sector": "Information Technology", "allocation": 18.9 },
+      { "sector": "Healthcare", "allocation": 15.2 },
+      { "sector": "Consumer Goods", "allocation": 12.1 },
+      { "sector": "Industrials", "allocation": 11.8 },
+      { "sector": "Real Estate", "allocation": 8.4 },
+      { "sector": "Materials", "allocation": 5.2 },
+      { "sector": "Others", "allocation": 3.6 }
+    ],
+    "performanceData": [
+      { "period": "2023", "return": 15.3, "benchmark": 14.1 },
+      { "period": "2022", "return": 9.8, "benchmark": 8.9 },
+      { "period": "2021", "return": 28.4, "benchmark": 26.7 },
+      { "period": "2020", "return": 18.9, "benchmark": 17.2 },
+      { "period": "2019", "return": 7.2, "benchmark": 7.8 }
+    ]
+  },
+  {
+    "id": 5,
+    "name": "Franklin India Prima Fund",
+    "type": "Equity",
+    "subtype": "Large Cap",
+    "aum": 9800,
+    "expenseRatio": 1.15,
+    "returns": {
+      "1Y": 10.2,
+      "3Y": 13.1,
+      "5Y": 12.4,
+      "10Y": 11.8
+    },
+    "riskRating": "Moderate",
+    "fundManager": "Ankit Agarwal",
+    "benchmark": "S&P BSE 100 TRI",
+    "inceptionDate": "1993-12-31",
+    "minInvestment": 5000,
+    "exitLoad": "1% if redeemed within 365 days",
+    "nav": 987.45,
+    "description": "To achieve long-term capital appreciation through investments primarily in equity and equity related securities.",
+    "topHoldings": [
+      { "name": "HDFC Bank Ltd", "allocation": 7.8 },
+      { "name": "Infosys Ltd", "allocation": 7.2 },
+      { "name": "ICICI Bank Ltd", "allocation": 6.9 },
+      { "name": "Reliance Industries Ltd", "allocation": 6.5 },
+      { "name": "Tata Consultancy Services", "allocation": 5.8 },
+      { "name": "Kotak Mahindra Bank", "allocation": 4.9 },
+      { "name": "Bharti Airtel Ltd", "allocation": 4.2 },
+      { "name": "Asian Paints Ltd", "allocation": 3.8 },
+      { "name": "HCL Technologies Ltd", "allocation": 3.5 },
+      { "name": "Larsen & Toubro Ltd", "allocation": 3.2 }
+    ],
+    "sectorAllocation": [
+      { "sector": "Financial Services", "allocation": 30.8 },
+      { "sector": "Information Technology", "allocation": 24.2 },
+      { "sector": "Consumer Goods", "allocation": 13.5 },
+      { "sector": "Energy", "allocation": 8.9 },
+      { "sector": "Telecommunications", "allocation": 7.2 },
+      { "sector": "Industrials", "allocation": 6.8 },
+      { "sector": "Healthcare", "allocation": 4.9 },
+      { "sector": "Others", "allocation": 3.7 }
+    ],
+    "performanceData": [
+      { "period": "2023", "return": 10.2, "benchmark": 11.8 },
+      { "period": "2022", "return": 6.8, "benchmark": 7.9 },
+      { "period": "2021", "return": 20.5, "benchmark": 23.5 },
+      { "period": "2020", "return": 12.8, "benchmark": 14.7 },
+      { "period": "2019", "return": 4.9, "benchmark": 6.2 }
+    ]
+  },
+  {
+    "id": 6,
+    "name": "DSP BlackRock Micro Cap Fund",
+    "type": "Equity",
+    "subtype": "Small Cap",
+    "aum": 5400,
+    "expenseRatio": 1.95,
+    "returns": {
+      "1Y": 22.1,
+      "3Y": 25.8,
+      "5Y": 21.2,
+      "10Y": 18.5
+    },
+    "riskRating": "Very High",
+    "fundManager": "Vinit Sambre",
+    "benchmark": "S&P BSE 250 SmallCap TRI",
+    "inceptionDate": "2006-12-29",
+    "minInvestment": 5000,
+    "exitLoad": "2% if redeemed within 365 days",
+    "nav": 3125.89,
+    "description": "To provide long-term capital appreciation by investing predominantly in equity and equity related securities of micro cap companies with high growth potential.",
+    "topHoldings": [
+      { "name": "Restaurant Brands Asia", "allocation": 3.8 },
+      { "name": "Happiest Minds Technologies", "allocation": 3.5 },
+      { "name": "Home First Finance Company", "allocation": 3.2 },
+      { "name": "Nazara Technologies Ltd", "allocation": 3.0 },
+      { "name": "Welspun Corp Ltd", "allocation": 2.9 },
+      { "name": "Suryoday Small Finance Bank", "allocation": 2.7 },
+      { "name": "Medplus Health Services", "allocation": 2.5 },
+      { "name": "Rainbow Children Medicare", "allocation": 2.4 },
+      { "name": "Easy Trip Planners Ltd", "allocation": 2.3 },
+      { "name": "Aptus Value Housing", "allocation": 2.2 }
+    ],
+    "sectorAllocation": [
+      { "sector": "Consumer Services", "allocation": 25.8 },
+      { "sector": "Information Technology", "allocation": 19.2 },
+      { "sector": "Financial Services", "allocation": 16.5 },
+      { "sector": "Healthcare", "allocation": 14.8 },
+      { "sector": "Industrials", "allocation": 10.2 },
+      { "sector": "Consumer Goods", "allocation": 7.9 },
+      { "sector": "Materials", "allocation": 3.4 },
+      { "sector": "Others", "allocation": 2.2 }
+    ],
+    "performanceData": [
+      { "period": "2023", "return": 22.1, "benchmark": 16.9 },
+      { "period": "2022", "return": 15.8, "benchmark": 11.5 },
+      { "period": "2021", "return": 42.3, "benchmark": 33.2 },
+      { "period": "2020", "return": 35.7, "benchmark": 26.4 },
+      { "period": "2019", "return": 12.4, "benchmark": 9.1 }
+    ]
+  },
+  {
+    "id": 7,
+    "name": "HDFC Corporate Bond Fund",
+    "type": "Debt",
+    "subtype": "Corporate Bond",
+    "aum": 7800,
+    "expenseRatio": 0.45,
+    "returns": {
+      "1Y": 7.2,
+      "3Y": 8.1,
+      "5Y": 7.8,
+      "10Y": 8.5
+    },
+    "riskRating": "Low",
+    "fundManager": "Satish Bhatia",
+    "benchmark": "CRISIL Corporate Bond Composite Index",
+    "inceptionDate": "2010-01-18",
+    "minInvestment": 5000,
+    "exitLoad": "0.25% if redeemed within 6 months",
+    "nav": 28.45,
+    "description": "To generate regular income through investments in a diversified portfolio of corporate bonds and government securities.",
+    "topHoldings": [
+      { "name": "Government Securities", "allocation": 15.2 },
+      { "name": "HDFC Ltd", "allocation": 8.9 },
+      { "name": "State Bank of India", "allocation": 7.8 },
+      { "name": "ICICI Bank Ltd", "allocation": 6.9 },
+      { "name": "Tata Steel Ltd", "allocation": 5.8 },
+      { "name": "Reliance Industries Ltd", "allocation": 5.2 },
+      { "name": "L&T Finance Holdings", "allocation": 4.8 },
+      { "name": "Mahindra & Mahindra Financial", "allocation": 4.2 },
+      { "name": "Bajaj Finance Ltd", "allocation": 3.9 },
+      { "name": "Housing Development Finance", "allocation": 3.7 }
+    ],
+    "sectorAllocation": [
+      { "sector": "Financial Services", "allocation": 45.2 },
+      { "sector": "Government Securities", "allocation": 20.8 },
+      { "sector": "Manufacturing", "allocation": 12.5 },
+      { "sector": "Infrastructure", "allocation": 8.9 },
+      { "sector": "Energy", "allocation": 6.2 },
+      { "sector": "Telecommunications", "allocation": 3.8 },
+      { "sector": "Others", "allocation": 2.6 }
+    ],
+    "performanceData": [
+      { "period": "2023", "return": 7.2, "benchmark": 7.0 },
+      { "period": "2022", "return": 6.8, "benchmark": 6.5 },
+      { "period": "2021", "return": 8.9, "benchmark": 8.7 },
+      { "period": "2020", "return": 9.2, "benchmark": 9.0 },
+      { "period": "2019", "return": 8.5, "benchmark": 8.3 }
+    ]
+  },
+  {
+    "id": 8,
+    "name": "Kotak Equity Opportunities Fund",
+    "type": "Equity",
+    "subtype": "Multi Cap",
+    "aum": 16200,
+    "expenseRatio": 1.35,
+    "returns": {
+      "1Y": 13.8,
+      "3Y": 16.4,
+      "5Y": 15.2,
+      "10Y": 14.3
+    },
+    "riskRating": "Moderately High",
+    "fundManager": "Harsha Upadhyaya",
+    "benchmark": "S&P BSE 500 TRI",
+    "inceptionDate": "2004-11-30",
+    "minInvestment": 5000,
+    "exitLoad": "1% if redeemed within 365 days",
+    "nav": 2156.78,
+    "description": "To provide long-term capital appreciation by investing in equity and equity related securities across market capitalizations.",
+    "topHoldings": [
+      { "name": "ICICI Bank Ltd", "allocation": 7.9 },
+      { "name": "Reliance Industries Ltd", "allocation": 7.2 },
+      { "name": "HDFC Bank Ltd", "allocation": 6.8 },
+      { "name": "Infosys Ltd", "allocation": 6.1 },
+      { "name": "Tata Consultancy Services", "allocation": 5.4 },
+      { "name": "Kotak Mahindra Bank", "allocation": 4.8 },
+      { "name": "Avenue Supermarts Ltd", "allocation": 4.2 },
+      { "name": "Asian Paints Ltd", "allocation": 3.9 },
+      { "name": "Bharti Airtel Ltd", "allocation": 3.6 },
+      { "name": "Titan Company Ltd", "allocation": 3.2 }
+    ],
+    "sectorAllocation": [
+      { "sector": "Financial Services", "allocation": 31.8 },
+      { "sector": "Information Technology", "allocation": 20.5 },
+      { "sector": "Consumer Goods", "allocation": 14.2 },
+      { "sector": "Energy", "allocation": 9.8 },
+      { "sector": "Healthcare", "allocation": 7.9 },
+      { "sector": "Telecommunications", "allocation": 6.2 },
+      { "sector": "Industrials", "allocation": 5.8 },
+      { "sector": "Others", "allocation": 3.8 }
+    ],
+    "performanceData": [
+      { "period": "2023", "return": 13.8, "benchmark": 12.9 },
+      { "period": "2022", "return": 8.9, "benchmark": 8.2 },
+      { "period": "2021", "return": 26.7, "benchmark": 25.1 },
+      { "period": "2020", "return": 17.8, "benchmark": 16.9 },
+      { "period": "2019", "return": 6.9, "benchmark": 7.2 }
+    ]
+  }
+]
