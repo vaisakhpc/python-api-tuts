@@ -7,3 +7,4 @@ requests
 pyxirr
 elasticsearch~=8.14.0
 black~=23.7.0
+django-cors-headers

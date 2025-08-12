@@ -104,3 +104,8 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Hide react-day-picker's caption label if present */
+.rdp-caption_label {
+  display: none !important;
+}

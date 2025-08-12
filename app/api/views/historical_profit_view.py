@@ -10,6 +10,7 @@ from django.conf import settings
 from elasticsearch import Elasticsearch, NotFoundError, ConnectionError
 import traceback
 from api.config.es_config import MUTUALFUND_INDEX_NAME, NAV_INDEX_NAME
+from api.serializers.mutual_fund_serializer import MutualFundSerializer
 import logging
 
 
@@ -79,6 +80,9 @@ class HistoricalProfitView(APIView):
                     "errorMessage": f"Mutual fund with ISIN {isin} not found.",
                 }
             )
+        # Serialize fund_data if it's a MutualFund instance
+        if isinstance(fund, MutualFund):
+            fund_data = MutualFundSerializer(fund).data
         if not fund.latest_nav_date or not fund.latest_nav:
             return Response(
                 {
@@ -146,12 +150,16 @@ class HistoricalProfitView(APIView):
         cashflows = []
         abs_invested = Decimal("0")
         redemption_date = fund.latest_nav_date
+        monthly_growth = []
 
         if invest_type == "lumpsum":
             # Invest all at first available NAV >= start date
-            first_nav = navs.earliest("date")
-            nav_date = first_nav.date
-            nav_val = Decimal(first_nav.nav)
+            if isinstance(navs, list):  # Handle the case where navs is a list
+                first_nav = min(navs, key=lambda x: x["date"])
+            else:  # Handle the case where navs is a QuerySet
+                first_nav = navs.earliest("date")
+            nav_date = first_nav["date"] if isinstance(first_nav, dict) else first_nav.date
+            nav_val = first_nav["nav"] if isinstance(first_nav, dict) else Decimal(first_nav.nav)
             units = amount / nav_val
             invested_dates.append(nav_date)
             cashflows.append(-amount)
@@ -164,7 +172,6 @@ class HistoricalProfitView(APIView):
             stepup = Decimal(stepup_str) if stepup_str else Decimal("0")
             amount_for_this_step = Decimal(request.query_params.get("amount"))
 
-            monthly_growth = []
             total_units = Decimal("0")
             invested_so_far = Decimal("0")
             sip_count = 0

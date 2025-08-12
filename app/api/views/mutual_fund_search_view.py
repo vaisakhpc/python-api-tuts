@@ -43,13 +43,12 @@ class MutualFundSearchView(PaginationMixin, APIView):
                     "bool": {
                         "should": [
                             {
-                                "multi_match": {
+                                "match_phrase_prefix": {
+                                "mf_name": {
                                     "query": query,
-                                    "fields": [
-                                        "mf_name^3",
-                                        "type",
-                                    ],  # Boost 'mf_name' field
+                                    "boost": 3,  # Boost 'mf_name' field
                                 }
+                            }
                             },
                             {"term": {"isin": query}},  # Exact match for ISIN
                         ]
@@ -66,8 +65,10 @@ class MutualFundSearchView(PaginationMixin, APIView):
                     {"term": {"mf_schema_code": int(query)}}
                 )
 
-            print(f"Elasticsearch query: {es_query}")  # Debugging output
             es_response = es.search(index=MUTUALFUND_INDEX_NAME, body=es_query)
+
+            print(f"Elasticsearch query: {es_query}")  # Debugging output
+            print(f"Elasticsearch response: {es_response}")  # Debugging output
 
             # Extract results from Elasticsearch response
             funds = [hit["_source"] for hit in es_response["hits"]["hits"]]
@@ -110,6 +111,20 @@ class MutualFundSearchView(PaginationMixin, APIView):
             for fund in page:
                 fund_type = fund.type
                 serialized = MutualFundSerializer(fund).data
-                grouped.setdefault(fund_type, []).append(serialized)
+                # Map DB fields to ES fields
+                mapped = {
+                    "isin": serialized.get("isin_growth", serialized.get("isin", None)),
+                    "mf_name": serialized.get("mf_name"),
+                    "mf_schema_code": serialized.get("mf_schema_code"),
+                    "start_date": serialized.get("start_date"),
+                    "aum": float(serialized.get("AUM", serialized.get("aum", 0))),
+                    "exit_load": serialized.get("exit_load"),
+                    "expense_ratio": serialized.get("expense_ratio"),
+                    "type": serialized.get("type"),
+                    "latest_nav": float(serialized.get("latest_nav", 0)),
+                    "latest_nav_date": serialized.get("latest_nav_date"),
+                    "returns": None,
+                }
+                grouped.setdefault(fund_type, []).append(mapped)
 
             return self.get_paginated_response(grouped)

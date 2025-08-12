@@ -13,6 +13,7 @@ import Screener from "./pages/Screener";
 import FundDetail from "./pages/FundDetail";
 import Holdings from "./pages/Holdings";
 import Profile from "./pages/Profile";
+import HistoricalCalculator from "./pages/HistoricalCalculator";
 import Help from "./pages/Help";
 import Contact from "./pages/Contact";
 import Terms from "./pages/Terms";
@@ -34,6 +35,7 @@ const App = () => (
           <Route path="/fund/:id" element={<FundDetail />} />
           <Route path="/holdings" element={<Holdings />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/historical-calculator" element={<HistoricalCalculator />} />
           <Route path="/help" element={<Help />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/terms" element={<Terms />} />

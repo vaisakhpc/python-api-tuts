@@ -15,7 +15,7 @@ export default function Layout({ children }: LayoutProps) {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [searchSuggestions, setSearchSuggestions] = useState<{name: string, id: number}[]>([]);
+  const [searchSuggestions, setSearchSuggestions] = useState<{name: string, id: number, isin: string}[]>([]);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -25,7 +25,7 @@ export default function Layout({ children }: LayoutProps) {
     if (value.length > 0) {
       try {
         const suggestions = await dataService.searchFunds(value);
-        setSearchSuggestions(suggestions.map(fund => ({ name: fund.name, id: fund.id })));
+        setSearchSuggestions(suggestions.map(fund => ({ name: fund.name, id: fund.id, isin: fund.isin })));
       } catch (error) {
         console.error('Error searching funds:', error);
         setSearchSuggestions([]);
@@ -35,7 +35,7 @@ export default function Layout({ children }: LayoutProps) {
     }
   };
 
-  const handleSuggestionClick = (fund: {name: string, id: number}) => {
+  const handleSuggestionClick = (fund: {name: string, id: number, isin: string}) => {
     setSearchQuery(fund.name);
     setSearchSuggestions([]);
     setIsSearchFocused(false);
@@ -97,7 +97,13 @@ export default function Layout({ children }: LayoutProps) {
                 <>
                   <Link to="/screener">
                     <Button variant="ghost" size="sm">
-                      Screener
+                      Fund Screener
+                    </Button>
+                  </Link>
+                  <Link to="/historical-calculator">
+                    <Button variant="ghost" size="sm">
+                      <TrendingUp className="mr-2 h-4 w-4" />
+                      Historical Calculator
                     </Button>
                   </Link>
                   <Link to="/holdings">
@@ -173,7 +179,13 @@ export default function Layout({ children }: LayoutProps) {
                   <>
                     <Link to="/screener" onClick={() => setIsMobileMenuOpen(false)}>
                       <Button variant="ghost" className="w-full justify-start">
-                        Screener
+                        Fund Screener
+                      </Button>
+                    </Link>
+                    <Link to="/historical-calculator" onClick={() => setIsMobileMenuOpen(false)}>
+                      <Button variant="ghost" className="w-full justify-start">
+                        <TrendingUp className="mr-2 h-4 w-4" />
+                        Historical Calculator
                       </Button>
                     </Link>
                     <Link to="/holdings" onClick={() => setIsMobileMenuOpen(false)}>

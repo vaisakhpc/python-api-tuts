@@ -2,6 +2,7 @@
   {
     "id": 1,
     "name": "HDFC Top 100 Fund",
+    "isin": "INF179K01014",
     "type": "Equity",
     "subtype": "Large Cap",
     "aum": 15000,
@@ -53,6 +54,7 @@
   {
     "id": 2,
     "name": "ICICI Prudential Bluechip Fund",
+    "isin": "INF109K015M0",
     "type": "Equity", 
     "subtype": "Large Cap",
     "aum": 18500,
@@ -104,6 +106,7 @@
   {
     "id": 3,
     "name": "SBI Small Cap Fund",
+    "isin": "INF200K01406",
     "type": "Equity",
     "subtype": "Small Cap", 
     "aum": 8200,
@@ -155,6 +158,7 @@
   {
     "id": 4,
     "name": "Axis Midcap Fund",
+    "isin": "INF846K01EW5",
     "type": "Equity",
     "subtype": "Mid Cap",
     "aum": 12000,
@@ -206,6 +210,7 @@
   {
     "id": 5,
     "name": "Franklin India Prima Fund",
+    "isin": "INF740K01012",
     "type": "Equity",
     "subtype": "Large Cap",
     "aum": 9800,
@@ -257,6 +262,7 @@
   {
     "id": 6,
     "name": "DSP BlackRock Micro Cap Fund",
+    "isin": "INF740K01046",
     "type": "Equity",
     "subtype": "Small Cap",
     "aum": 5400,
@@ -308,6 +314,7 @@
   {
     "id": 7,
     "name": "HDFC Corporate Bond Fund",
+    "isin": "INF179K01394",
     "type": "Debt",
     "subtype": "Corporate Bond",
     "aum": 7800,
@@ -358,6 +365,7 @@
   {
     "id": 8,
     "name": "Kotak Equity Opportunities Fund",
+    "isin": "INF174K01EX2",
     "type": "Equity",
     "subtype": "Multi Cap",
     "aum": 16200,

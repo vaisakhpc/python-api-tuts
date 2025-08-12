@@ -15,16 +15,18 @@ import {
   BarChart3,
   Info,
   Star,
-  Download
+  Download,
+  Wallet
 } from "lucide-react";
 import Layout from "@/components/Layout";
 import PerformanceChart from "@/components/PerformanceChart";
-import { dataService, Fund } from "@/services/dataService";
+import { dataService, Fund, Holding } from "@/services/dataService";
 import { cn } from "@/lib/utils";
 
 export default function FundDetail() {
   const { id } = useParams<{ id: string }>();
   const [fund, setFund] = useState<Fund | null>(null);
+  const [userInvestment, setUserInvestment] = useState<Holding | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -36,6 +38,11 @@ export default function FundDetail() {
       try {
         const fundData = await dataService.getFundById(Number(id));
         setFund(fundData);
+
+        // Check if user has investment in this fund
+        const holdings = await dataService.getUserHoldings();
+        const investment = holdings.find(holding => holding.fundId === Number(id));
+        setUserInvestment(investment || null);
       } catch (error) {
         console.error('Error fetching fund:', error);
       } finally {
@@ -68,7 +75,7 @@ export default function FundDetail() {
             <Link to="/screener">
               <Button>
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Screener
+                Back to Fund Screener
               </Button>
             </Link>
           </div>
@@ -100,15 +107,6 @@ export default function FundDetail() {
   return (
     <Layout>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Back Button */}
-        <div className="mb-6">
-          <Link to="/screener">
-            <Button variant="outline" className="mb-4">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Screener
-            </Button>
-          </Link>
-        </div>
 
         {/* Fund Header */}
         <div className="mb-8">
@@ -200,6 +198,78 @@ export default function FundDetail() {
             </Card>
           </div>
         </div>
+
+        {/* User Investment - Prominent Section */}
+        {userInvestment && (
+          <div className="mb-8">
+            <Card className="border-2 border-primary/30 bg-gradient-to-r from-primary/5 to-primary/10 shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-xl">
+                  <div className="p-2 bg-primary/20 rounded-full">
+                    <Wallet className="h-6 w-6 text-primary" />
+                  </div>
+                  Your Investment in {fund.name}
+                </CardTitle>
+                <CardDescription className="text-base">
+                  Current holdings and performance summary
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                  <div className="text-center">
+                    <div className="text-sm text-muted-foreground mb-1">Current Value</div>
+                    <div className="text-2xl font-bold text-green-600">
+                      ₹{userInvestment.totalCurrentValue.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm text-muted-foreground mb-1">Total Invested</div>
+                    <div className="text-2xl font-bold">
+                      ₹{userInvestment.totalInvestedValue.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm text-muted-foreground mb-1">Units Held</div>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {userInvestment.totalQuantity}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm text-muted-foreground mb-1">Total Returns</div>
+                    <div className={cn(
+                      "text-2xl font-bold",
+                      userInvestment.totalGainLoss >= 0 ? "text-green-600" : "text-red-600"
+                    )}>
+                      {userInvestment.totalGainLoss >= 0 ? "+" : ""}₹{userInvestment.totalGainLoss.toLocaleString()}
+                    </div>
+                    <div className={cn(
+                      "text-sm font-medium",
+                      userInvestment.totalGainLoss >= 0 ? "text-green-600" : "text-red-600"
+                    )}>
+                      ({userInvestment.totalGainLossPercent.toFixed(2)}%)
+                    </div>
+                  </div>
+                </div>
+
+                {/* Additional Actions */}
+                <div className="mt-6 pt-4 border-t flex gap-3">
+                  <Button variant="outline" size="sm">
+                    <TrendingUp className="mr-2 h-4 w-4" />
+                    View Transactions
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    <DollarSign className="mr-2 h-4 w-4" />
+                    Invest More
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    <Download className="mr-2 h-4 w-4" />
+                    Download Statement
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Detailed Information Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">

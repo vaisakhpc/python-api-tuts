@@ -8,6 +8,7 @@ import holdingsData from '@/data/holdings.json';
 export interface Fund {
   id: number;
   name: string;
+  isin: string;
   type: string;
   subtype: string;
   aum: number;
@@ -94,12 +95,12 @@ class DataService {
    * Search funds by name
    * In production: GET /api/funds/search?q={query}
    */
-  async searchFunds(query: string): Promise<Array<{id: number, name: string}>> {
+  async searchFunds(query: string): Promise<Array<{id: number, name: string, isin: string}>> {
     await new Promise(resolve => setTimeout(resolve, 50));
-    const funds = fundsData.filter(fund => 
+    const funds = fundsData.filter(fund =>
       fund.name.toLowerCase().includes(query.toLowerCase())
     );
-    return funds.map(fund => ({ id: fund.id, name: fund.name }));
+    return funds.map(fund => ({ id: fund.id, name: fund.name, isin: fund.isin }));
   }
 
   /**
