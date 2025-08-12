@@ -8,6 +8,7 @@ from ..permissions import IsActiveUser
 from django.core.mail import send_mail
 from django.conf import settings
 from api.views.user_registration_view import send_registration_email
+from rest_framework.exceptions import ValidationError
 
 
 class UserViewSet(viewsets.ViewSet):
@@ -15,7 +16,10 @@ class UserViewSet(viewsets.ViewSet):
     A ViewSet for listing, creating, updating, and deleting users.
     """
 
-    permission_classes = [IsActiveUser]
+    def get_permissions(self):
+        if self.action == 'create':
+            return []
+        return [IsActiveUser()]
 
     def list(self, request):
         # GET /users/ or GET /users/?email=...
@@ -38,7 +42,47 @@ class UserViewSet(viewsets.ViewSet):
     def create(self, request):
         # POST /users/
         serializer = UserSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except ValidationError as exc:
+            error_details = exc.detail
+            # Check for user exists error
+            if "email" in error_details and "already exists" in str(error_details["email"]):
+                return Response(
+                    {
+                        "statusCode": 400,
+                        "errorMessage": {
+                            "message": "User with this email already exists.",
+                            "reason": "user_exists",
+                        },
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            # Check for missing field error
+            for field, messages in error_details.items():
+                if "This field is required." in messages:
+                    return Response(
+                        {
+                            "statusCode": 400,
+                            "errorMessage": {
+                                "message": f"{field} field is required.",
+                                "reason": "missing_field",
+                                "field": field
+                            },
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            # Default error response
+            return Response(
+                {
+                    "statusCode": 400,
+                    "errorMessage": {
+                        "message": str(error_details),
+                        "reason": "validation_error"
+                    },
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         user = serializer.save()
 
         # Send registration email (only for newly created users)

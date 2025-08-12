@@ -65,7 +65,7 @@ export default function Index() {
         <div className="container mx-auto max-w-7xl">
           <div className="text-center space-y-8">
             <Badge variant="secondary" className="px-4 py-2">
-              🚀 Now tracking 2,500+ mutual funds
+              🚀 Now tracking 7,500+ mutual funds
             </Badge>
             
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight">

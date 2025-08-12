@@ -200,3 +200,5 @@ LOGGING = {
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8080",  # Allow requests from the React app
 ]
+
+FRONTEND_URL = environ.get("FRONTEND_URL", "http://localhost:8080")

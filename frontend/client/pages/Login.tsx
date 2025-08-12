@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,23 +9,39 @@ import { Separator } from "@/components/ui/separator";
 import { TrendingUp, Eye, EyeOff, AlertCircle } from "lucide-react";
 import Layout from "@/components/Layout";
 import InFolioLogo from "@/components/InFolioLogo";
+import { API_CONFIG } from "@/config/api";
+import { encodeToken, decodeToken, getJwtPayload } from "@/lib/tokenUtils";
 
 export default function Login() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const params = new URLSearchParams(location.search);
+  const redirectPath = params.get("redirect") || "/holdings";
+
   const [formData, setFormData] = useState({
-    username: "",
+    email: "",
     password: ""
   });
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    const encodedToken = localStorage.getItem("access_token");
+    const token = encodedToken ? decodeToken(encodedToken) : null;
+    const payload = token ? getJwtPayload(token) : null;
+    if (encodedToken && payload && payload.exp * 1000 > Date.now()) {
+      navigate("/", { replace: true });
+    }
+  }, [navigate]);
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.username.trim()) {
-      newErrors.username = "Username is required";
-    } else if (formData.username.length < 3) {
-      newErrors.username = "Username must be at least 3 characters";
+    if (!formData.email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = "Please enter a valid email address";
     }
 
     if (!formData.password) {
@@ -40,21 +56,34 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!validateForm()) return;
-
     setIsLoading(true);
-    
+    setErrors({});
     try {
-      // Mock API call - replace with actual authentication
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // On successful login, redirect to dashboard
-      console.log("Login successful:", formData);
-      // In real app: navigate("/dashboard");
-      
+      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/user/token/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password
+        })
+      });
+      const data = await res.json();
+      if (res.status === 200 && data.data.access) {
+        const encoded = encodeToken(data.data.access);
+        localStorage.setItem("access_token", encoded);
+        // Store user information
+        localStorage.setItem("user_name", data.data.name);
+        // Redirect to dashboard or home
+        navigate(redirectPath, { replace: true });
+      } else if (res.status === 401) {
+        setErrors({ general: data.data.detail || "Invalid email or password" });
+      } else {
+        setErrors({ general: "Login failed. Please try again." });
+      }
     } catch (error) {
-      setErrors({ general: "Invalid username or password" });
+      console.log("Login error:", error);
+      setErrors({ general: "Network error. Please try again." });
     } finally {
       setIsLoading(false);
     }
@@ -108,19 +137,19 @@ export default function Login() {
               )}
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Username Field */}
+                {/* Email Field */}
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
+                  <Label htmlFor="email">Email Address</Label>
                   <Input
-                    id="username"
-                    type="text"
-                    placeholder="Enter your username"
-                    value={formData.username}
-                    onChange={(e) => handleInputChange("username", e.target.value)}
-                    className={errors.username ? "border-destructive" : ""}
+                    id="email"
+                    type="email"
+                    placeholder="Enter your email address"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange("email", e.target.value)}
+                    className={errors.email ? "border-destructive" : ""}
                   />
-                  {errors.username && (
-                    <p className="text-sm text-destructive">{errors.username}</p>
+                  {errors.email && (
+                    <p className="text-sm text-destructive">{errors.email}</p>
                   )}
                 </div>
 

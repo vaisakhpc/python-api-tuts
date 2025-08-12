@@ -9,6 +9,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import SetPassword from "./pages/SetPassword";
 import Screener from "./pages/Screener";
 import FundDetail from "./pages/FundDetail";
 import Holdings from "./pages/Holdings";
@@ -18,6 +19,7 @@ import Help from "./pages/Help";
 import Contact from "./pages/Contact";
 import Terms from "./pages/Terms";
 import NotFound from "./pages/NotFound";
+import ForgotPassword from "./pages/ForgotPassword";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +33,8 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/set-password" element={<SetPassword />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/screener" element={<Screener />} />
           <Route path="/fund/:id" element={<FundDetail />} />
           <Route path="/holdings" element={<Holdings />} />

@@ -11,6 +11,7 @@ class User(models.Model):
     age = models.IntegerField()
     is_active = models.BooleanField(default=False)
     reset_code = models.CharField(max_length=64, blank=True, null=True)
+    reset_expiry = models.DateTimeField(blank=True, null=True)
 
     def set_password(self, raw_password):
         self.password = make_password(raw_password)

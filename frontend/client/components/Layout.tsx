@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,7 @@ import { Search, TrendingUp, User, Menu, X } from "lucide-react";
 import { dataService } from "@/services/dataService";
 import InFolioLogo from "@/components/InFolioLogo";
 import { cn } from "@/lib/utils";
+import { decodeToken } from "@/lib/tokenUtils";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -16,8 +17,36 @@ export default function Layout({ children }: LayoutProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchSuggestions, setSearchSuggestions] = useState<{name: string, id: number, isin: string}[]>([]);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
+
+  function isTokenExpired(token) {
+    if (!token) return true;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.exp * 1000 < Date.now();
+    } catch {
+      return true;
+    }
+  }
+
+  let accessToken = null;
+  let userName = null;
+  if (typeof window !== "undefined") {
+    const encodedToken = localStorage.getItem("access_token");
+    const decodedToken = encodedToken ? decodeToken(encodedToken) : null;
+    if (decodedToken && !isTokenExpired(decodedToken)) {
+      accessToken = decodedToken;
+      userName = localStorage.getItem("user_name");
+    } else {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("user_name");
+      accessToken = null;
+      userName = null;
+    }
+  }
 
   // Search suggestions using data service
   const handleSearchChange = async (value: string) => {
@@ -43,6 +72,19 @@ export default function Layout({ children }: LayoutProps) {
   };
 
   const isAuthPage = location.pathname === "/login" || location.pathname === "/register";
+
+  // Close profile menu on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    }
+    if (isProfileMenuOpen) {
+      document.addEventListener("mousedown", handleClick);
+      return () => document.removeEventListener("mousedown", handleClick);
+    }
+  }, [isProfileMenuOpen]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -93,7 +135,7 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center space-x-4">
-              {!isAuthPage && (
+              {!isAuthPage && accessToken && (
                 <>
                   <Link to="/screener">
                     <Button variant="ghost" size="sm">
@@ -111,23 +153,52 @@ export default function Layout({ children }: LayoutProps) {
                       My Holdings
                     </Button>
                   </Link>
-                  <Link to="/profile">
-                    <Button variant="ghost" size="icon">
+                  <div className="relative inline-block" ref={profileMenuRef}
+                    onMouseEnter={() => setIsProfileMenuOpen(true)}
+                    onMouseLeave={() => setIsProfileMenuOpen(false)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                    >
                       <User className="h-4 w-4" />
+                    </Button>
+                    {isProfileMenuOpen && (
+                      <div className="absolute left-0 top-full mt-0 w-40 bg-background border rounded shadow-lg z-50">
+                        <div className="px-4 py-2 text-sm font-semibold bg-primary/10 text-primary rounded-t">
+                          {userName}
+                        </div>
+                        <Link to="/profile" className="block px-4 py-2 hover:bg-accent text-sm">Profile Details</Link>
+                        <button className="block w-full text-left px-4 py-2 hover:bg-accent text-sm" onClick={() => { localStorage.removeItem("access_token"); localStorage.removeItem("user_name"); navigate("/"); }}>Logout</button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+              {!isAuthPage && !accessToken && (
+                <>
+                  <Link to="/screener">
+                    <Button variant="ghost" size="sm">
+                      Fund Screener
+                    </Button>
+                  </Link>
+                  <Link to="/historical-calculator">
+                    <Button variant="ghost" size="sm">
+                      <TrendingUp className="mr-2 h-4 w-4" />
+                      Historical Calculator
+                    </Button>
+                  </Link>
+                  <Link to="/login">
+                    <Button variant="outline" size="sm">
+                      Login
+                    </Button>
+                  </Link>
+                  <Link to="/register">
+                    <Button size="sm">
+                      Register
                     </Button>
                   </Link>
                 </>
               )}
-              <Link to="/login">
-                <Button variant="outline" size="sm">
-                  Login
-                </Button>
-              </Link>
-              <Link to="/register">
-                <Button size="sm">
-                  Register
-                </Button>
-              </Link>
             </nav>
 
             {/* Mobile Menu Button */}
@@ -175,7 +246,7 @@ export default function Layout({ children }: LayoutProps) {
           {isMobileMenuOpen && (
             <div className="md:hidden border-t py-4">
               <nav className="flex flex-col space-y-2">
-                {!isAuthPage && (
+                {!isAuthPage && accessToken && (
                   <>
                     <Link to="/screener" onClick={() => setIsMobileMenuOpen(false)}>
                       <Button variant="ghost" className="w-full justify-start">
@@ -198,18 +269,36 @@ export default function Layout({ children }: LayoutProps) {
                         Profile
                       </Button>
                     </Link>
+                    <Button variant="outline" className="w-full justify-start" onClick={() => { localStorage.removeItem("access_token"); localStorage.removeItem("user_name"); setIsMobileMenuOpen(false); navigate("/login"); }}>
+                      Logout
+                    </Button>
                   </>
                 )}
-                <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button variant="outline" className="w-full justify-start">
-                    Login
-                  </Button>
-                </Link>
-                <Link to="/register" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button className="w-full justify-start">
-                    Register
-                  </Button>
-                </Link>
+                {!isAuthPage && !accessToken && (
+                  <>
+                    <Link to="/screener" onClick={() => setIsMobileMenuOpen(false)}>
+                      <Button variant="ghost" className="w-full justify-start">
+                        Fund Screener
+                      </Button>
+                    </Link>
+                    <Link to="/historical-calculator" onClick={() => setIsMobileMenuOpen(false)}>
+                      <Button variant="ghost" className="w-full justify-start">
+                        <TrendingUp className="mr-2 h-4 w-4" />
+                        Historical Calculator
+                      </Button>
+                    </Link>
+                    <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>
+                      <Button variant="outline" className="w-full justify-start">
+                        Login
+                      </Button>
+                    </Link>
+                    <Link to="/register" onClick={() => setIsMobileMenuOpen(false)}>
+                      <Button className="w-full justify-start">
+                        Register
+                      </Button>
+                    </Link>
+                  </>
+                )}
               </nav>
             </div>
           )}

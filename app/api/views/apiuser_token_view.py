@@ -29,6 +29,7 @@ class UserTokenObtainView(APIView):
                     {
                         "refresh": str(refresh),
                         "access": str(refresh.access_token),
+                        "name": user.name,
                     }
                 )
         except User.DoesNotExist:

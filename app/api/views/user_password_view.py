@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from api.models import User
 from rest_framework.permissions import AllowAny
+from django.utils import timezone
 
 
 class SetPasswordSerializer(serializers.Serializer):
@@ -27,10 +28,18 @@ class SetPasswordView(APIView):
         email = serializer.validated_data["email"]
         code = serializer.validated_data["code"]
         password = serializer.validated_data["password"]
+        forgot = request.data.get("forgot", False)
 
         try:
             api_user = User.objects.get(email=email, reset_code=code)
-            if api_user.is_active:
+            # Check expiry
+
+            if not api_user.reset_expiry or api_user.reset_expiry < timezone.now():
+                return Response(
+                    {"detail": "Reset link has expired. Please request a new one."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if not forgot and api_user.is_active:
                 return Response(
                     {"detail": "User already activated."},
                     status=status.HTTP_400_BAD_REQUEST,
@@ -38,6 +47,7 @@ class SetPasswordView(APIView):
             api_user.set_password(password)
             api_user.is_active = True
             api_user.reset_code = None  # Invalidate code
+            api_user.reset_expiry = None
             api_user.save()
             return Response({"detail": "Password set successfully."})
         except User.DoesNotExist:

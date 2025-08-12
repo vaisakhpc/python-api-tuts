@@ -27,10 +27,11 @@ import {
   PieChart
 } from "lucide-react";
 import Layout from "@/components/Layout";
+import RequireAuth from "@/components/RequireAuth";
 import { cn } from "@/lib/utils";
 import { dataService, type Holding } from "@/services/dataService";
 
-export default function Profile() {
+const ProfilePage = () => {
   // Profile Information State
   const [profileInfo, setProfileInfo] = useState({
     name: "John Doe",
@@ -670,5 +671,13 @@ export default function Profile() {
         </Tabs>
       </div>
     </Layout>
+  );
+};
+
+export default function ProfilePageWithAuth() {
+  return (
+    <RequireAuth>
+      <ProfilePage />
+    </RequireAuth>
   );
 }
