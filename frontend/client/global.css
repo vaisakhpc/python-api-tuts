@@ -109,3 +109,15 @@
 .rdp-caption_label {
   display: none !important;
 }
+
+/* Custom utilities */
+.fund-input-trim-right {
+  padding-right: 10%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.close-overlay-button {
+  color: #03140aff; /* matches close popup button color */
+}

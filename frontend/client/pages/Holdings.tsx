@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import Layout from "@/components/Layout";
 import RequireAuth from "@/components/RequireAuth";
-import { dataService, Holding, Transaction } from "@/services/dataService";
+import { Transaction } from "@/services/dataService";
 import { cn } from "@/lib/utils";
 import { API_CONFIG } from "@/config/api";
 import { decodeToken } from "@/lib/tokenUtils";
@@ -309,33 +309,58 @@ useEffect(() => {
   };
 
   const handleEditTransaction = async () => {
+    setEditError("");
     if (!validateForm() || !editingTransaction) return;
 
+    setEditDialogLoading(true);
     try {
-      const updatedTransaction = {
+      const body = {
         type: formData.type,
-        quantity: Number(formData.quantity),
-        price: Number(formData.price),
-        date: formData.date,
-        value: Number(formData.quantity) * Number(formData.price)
+        nav: formData.price,
+        units: formData.quantity,
+        transacted_at: formData.date,
       };
 
-      await dataService.updateTransaction(editingTransaction.id, updatedTransaction);
-      
-      // Refresh holdings
-      const updatedHoldings = await dataService.getUserHoldings();
-      setHoldings(updatedHoldings);
-      
-      setIsEditDialogOpen(false);
-      setEditingTransaction(null);
-      resetForm();
-    } catch (error) {
-      console.error('Error updating transaction:', error);
+      const encodedToken = localStorage.getItem("access_token");
+      const token = encodedToken ? decodeToken(encodedToken) : null;
+
+      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/mfholdings/${editingTransaction.id}/`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(body)
+      });
+
+      const result = await res.json();
+      if (result.statusCode === 200) {
+        // success banner similar to delete
+        setEditSuccess({ fundId: formData.fundId || null, visible: true });
+        setTimeout(() => {
+          setEditSuccess({ fundId: null, visible: false });
+        }, 10000);
+
+        await fetchHoldings();
+        await fetchPortfolioSummary();
+
+        setIsEditDialogOpen(false);
+        setEditingTransaction(null);
+        resetForm();
+      } else {
+        setEditError(result.errorMessage || "Error updating transaction");
+      }
+    } catch (err) {
+      setEditError("Network error updating transaction");
     }
+    setEditDialogLoading(false);
   };
 
   const [deleteSuccess, setDeleteSuccess] = useState<{fundId: number | null, visible: boolean}>({fundId: null, visible: false});
   const [deleteError, setDeleteError] = useState<{fundId: number | null, message: string, visible: boolean}>({fundId: null, message: '', visible: false});
+  const [editSuccess, setEditSuccess] = useState<{fundId: number | null, visible: boolean}>({fundId: null, visible: false});
+  const [editError, setEditError] = useState<string>("");
+  const [editDialogLoading, setEditDialogLoading] = useState<boolean>(false);
   const handleDeleteTransaction = async (transactionId: number, fundId?: number) => {
     try {
       const encodedToken = localStorage.getItem("access_token");
@@ -378,6 +403,24 @@ useEffect(() => {
       price: transaction.price.toString(),
       date: transaction.date
     });
+    // Derive ISIN and start date for the current fund so date picker autofill works in edit
+    try {
+      const rawList: any[] = Array.isArray(holdings)
+        ? (holdings as any[])
+        : (holdings && typeof holdings === 'object' && Array.isArray((holdings as any).results))
+          ? (holdings as any).results
+          : [];
+      const raw = rawList.find((h: any) => (h?.fund_id ?? h?.fund) === fundId);
+      const isin = raw?.fund_details?.isin_growth || "";
+      const startDateStr = raw?.fund_details?.start_date || raw?.fund_details?.inception_date;
+      setSelectedFundIsin(isin || "");
+      setSelectedFundStartDate(startDateStr ? new Date(startDateStr) : null);
+    } catch (_) {
+      setSelectedFundIsin("");
+      setSelectedFundStartDate(null);
+    }
+    setEditError("");
+    setPriceError("");
     setIsEditDialogOpen(true);
     setDeleteSuccess({fundId: null, visible: false});
   };
@@ -543,8 +586,28 @@ useEffect(() => {
           </div>
         ) : portfolioSummary && (
           <Card className="mb-6">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Portfolio Summary</CardTitle>
+              <div className="text-sm whitespace-nowrap">
+                {(() => {
+                  const fundCount = paginatedHoldings.length;
+                  let buyCount = 0, sellCount = 0;
+                  paginatedHoldings.forEach(h => {
+                    h.transactions.forEach(t => {
+                      if (t.type === "BUY") buyCount++;
+                      if (t.type === "SELL") sellCount++;
+                    });
+                  });
+                  return (
+                    <span>
+                      <span className="font-semibold text-primary">{fundCount} Funds</span>
+                      <span className="ml-2">
+                        (<span className="text-green-600 font-semibold">{buyCount} BUYs</span>, <span className="text-red-600 font-semibold">{sellCount} SELLs</span>)
+                      </span>
+                    </span>
+                  );
+                })()}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -620,28 +683,7 @@ useEffect(() => {
                 </button>
               )}
             </div>
-            {/* Funds and transactions summary */}
-            <div className="flex flex-col justify-center items-start min-w-[120px]">
-              {/* Calculate fund and transaction counts */}
-              {(() => {
-                const fundCount = paginatedHoldings.length;
-                let buyCount = 0, sellCount = 0;
-                paginatedHoldings.forEach(h => {
-                  h.transactions.forEach(t => {
-                    if (t.type === "BUY") buyCount++;
-                    if (t.type === "SELL") sellCount++;
-                  });
-                });
-                return (
-                  <>
-                    <span className="font-semibold text-base text-primary">{fundCount} Funds</span>
-                    <span className="text-xs mt-0.5">
-                      (<span className="text-green-600 font-semibold">{buyCount} BUYs</span>, <span className="text-red-600 font-semibold">{sellCount} SELLs</span>)
-                    </span>
-                  </>
-                );
-              })()}
-            </div>
+            {/* Funds and transactions summary moved to Portfolio Summary header */}
           </div>
           <div className="flex flex-wrap gap-2">
             {/* ...existing code for Add Transaction, Import CSV, Export CSV... */}
@@ -680,22 +722,15 @@ useEffect(() => {
                         value={formData.fundName}
                         onChange={e => handleFundSearch(e.target.value)}
                         autoComplete="off"
-                        className={errors.fundName ? "border-destructive" : ""}
-                        style={{
-                          paddingRight: '10%',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden'
-                        }}
+                        className={(errors.fundName ? "border-destructive " : "") + "fund-input-trim-right"}
                       />
                       {formData.fundName && (
                         <button
                           type="button"
                           aria-label="Clear fund name"
                           onClick={() => { handleFundSearch(""); setSelectedFundStartDate(null); setSelectedFundIsin(""); }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center bg-transparent hover:bg-muted-foreground/20 rounded-full text-green-900 text-xs font-bold"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center bg-transparent hover:bg-muted-foreground/20 rounded-full text-green-900 text-xs font-bold close-overlay-button"
                           tabIndex={0}
-                          style={{ color: '#03140aff' }} // matches close popup button color
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
                             <path fillRule="evenodd" d="M10 8.586l4.95-4.95a1 1 0 111.414 1.414L11.414 10l4.95 4.95a1 1 0 01-1.414 1.414L10 11.414l-4.95 4.95a1 1 0 01-1.414-1.414L8.586 10l-4.95-4.95A1 1 0 115.05 3.636L10 8.586z" clipRule="evenodd" />
@@ -754,7 +789,7 @@ useEffect(() => {
                             captionLayout="dropdown"
                             fromYear={selectedFundStartDate ? selectedFundStartDate.getFullYear() : 1990}
                             toYear={new Date().getFullYear()}
-                            defaultMonth={ new Date(selectedDate) || selectedFundStartDate || new Date()}
+                            defaultMonth={ formData.date ? new Date(formData.date) : (selectedFundStartDate || new Date()) }
                           />
                         </div>
                       )}
@@ -850,7 +885,7 @@ useEffect(() => {
           <CardContent className="p-0">
             <div className="relative overflow-x-auto">
               {isLoading && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70" style={{ pointerEvents: 'none' }}>
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 pointer-events-none">
                   <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
                 </div>
               )}
@@ -929,6 +964,11 @@ useEffect(() => {
                               <TableCell colSpan={7} className="p-0 bg-muted/30 border-t">
                                 <div className="p-6">
                                   {/* Success or error message for delete, only for this fund */}
+                                  {editSuccess.visible && editSuccess.fundId === holding.fundId && (
+                                    <div className="mb-2 p-2 rounded bg-green-100 text-green-800 font-medium flex items-center">
+                                      <span>Transaction updated successfully!</span>
+                                    </div>
+                                  )}
                                   {deleteSuccess.visible && deleteSuccess.fundId === holding.fundId && (
                                     <div className="mb-2 p-2 rounded bg-green-100 text-green-800 font-medium flex items-center">
                                       <span>Transaction deleted successfully!</span>
@@ -1031,6 +1071,11 @@ useEffect(() => {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
+              {editError && (
+                <div className="mb-2 p-2 rounded bg-red-100 text-red-800 font-medium flex items-center">
+                  <span>{editError}</span>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="editFundName">Fund Name</Label>
                 <Input
@@ -1040,6 +1085,41 @@ useEffect(() => {
                   disabled
                   className="bg-muted"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Transaction Date</Label>
+                <div className="relative">
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !formData.date && "text-muted-foreground"
+                    )}
+                    onClick={() => setCalendarOpen(true)}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {formData.date ? format(new Date(formData.date), "PPP") : <span>Pick a date</span>}
+                  </Button>
+                  {calendarOpen && (
+                    <div ref={calendarRef} className="absolute z-10 bg-background border rounded-md shadow-md mt-1">
+                      <CalendarComponent
+                        mode="single"
+                        selected={formData.date ? new Date(formData.date) : undefined}
+                        onSelect={handleDateSelect}
+                        disabled={date =>
+                          (selectedFundStartDate && date < selectedFundStartDate) || date > new Date() || [0, 6].includes(date.getDay())
+                        }
+                        captionLayout="dropdown"
+                        fromYear={selectedFundStartDate ? selectedFundStartDate.getFullYear() : 1990}
+                        toYear={new Date().getFullYear()}
+                        defaultMonth={ formData.date ? new Date(formData.date) : (selectedFundStartDate || new Date()) }
+                      />
+                    </div>
+                  )}
+                </div>
+                {errors.date && <p className="text-sm text-destructive">{errors.date}</p>}
+                {priceError && <p className="text-sm text-destructive">{priceError}</p>}
               </div>
 
               <div className="space-y-2">
@@ -1082,69 +1162,12 @@ useEffect(() => {
                 {errors.price && <p className="text-sm text-destructive">{errors.price}</p>}
               </div>
 
-              <div className="space-y-2">
-                <Label>Transaction Date</Label>
-                <div className="relative">
-                  <Button
-                    variant={"outline"}
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !formData.date && "text-muted-foreground"
-                    )}
-                    onClick={() => setCalendarOpen(true)}
-                  >
-                    <Calendar className="mr-2 h-4 w-4" />
-                    {formData.date ? format(new Date(formData.date), "PPP") : <span>Pick a date</span>}
-                  </Button>
-                  {calendarOpen && (
-                    <div ref={calendarRef} className="absolute z-10 bg-background border rounded-md shadow-md mt-1">
-                      <CalendarComponent
-                        mode="single"
-                        selected={formData.date ? new Date(formData.date) : undefined}
-                        onSelect={async (date) => {
-                          if (!date) return;
-                          const formattedDate = format(date, "yyyy-MM-dd");
-                          setSelectedDate(formattedDate);
-                          setFormData(prev => ({ ...prev, date: formattedDate }));
-                          setCalendarOpen(false);
-                          // Fetch price from API
-                          setPriceError("");
-                          setFormData(prev => ({ ...prev, price: "" }));
-                          if (formData.fundId && selectedFundStartDate && selectedFundIsin) {
-                            try {
-                              const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/fund-price?isin=${selectedFundIsin}&date=${formattedDate}`);
-                              const result = await res.json();
-                              if (result.statusCode === 200 && result.data && typeof result.data.price === "number") {
-                                setFormData(prev => ({ ...prev, price: result.data.price.toFixed(2) }));
-                                setPriceError("");
-                              } else {
-                                setPriceError(result.errorMessage || "Price not found for selected date");
-                                setFormData(prev => ({ ...prev, price: "" }));
-                              }
-                            } catch (err) {
-                              setPriceError("Error fetching price. Please try again.");
-                              setFormData(prev => ({ ...prev, price: "" }));
-                            }
-                          }
-                        }}
-                        disabled={(date) =>
-                          (selectedFundStartDate && date < selectedFundStartDate) || date > new Date()
-                        }
-                        initialFocus
-                      />
-                    </div>
-                  )}
-                </div>
-                {errors.date && <p className="text-sm text-destructive">{errors.date}</p>}
-                {priceError && <p className="text-sm text-destructive">{priceError}</p>}
-              </div>
-
               <div className="flex justify-end space-x-2">
                 <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleEditTransaction}>
-                  Update Transaction
+                <Button onClick={handleEditTransaction} disabled={editDialogLoading}>
+                  {editDialogLoading ? "Updating..." : "Update Transaction"}
                 </Button>
               </div>
             </div>
