@@ -12,6 +12,7 @@ from api.views.mutual_fund_detail_view import MutualFundDetailView
 from api.views.portfolio_returns_view import PortfolioReturnsView
 from api.views.historical_profit_view import HistoricalProfitView
 from api.views.transaction_import_view import TransactionImportView
+from api.views.fund_price_view import FundPriceView
 
 urlpatterns = [
     path("users/", include("api.routes.user_urls")),
@@ -40,4 +41,5 @@ urlpatterns = [
     path("portfolio-returns/", PortfolioReturnsView.as_view()),
     path("historical-profit/", HistoricalProfitView.as_view()),
     path("import-transactions/", TransactionImportView.as_view()),
+    path("fund-price/", FundPriceView.as_view(), name="fund-price"),
 ]

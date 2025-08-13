@@ -79,7 +79,7 @@ def validate_nav_and_sales(data, fund, user, instance=None):
     TOLERANCE = Decimal("0.1")
     if abs(input_nav - historical_nav) > TOLERANCE:
         raise serializers.ValidationError(
-            f"The supplied NAV ({input_nav}) does not match the official NAV ({historical_nav}) "
+            f"The supplied NAV ({input_nav}) does not match the official NAV ({round(historical_nav, 2)}) "
             f"for {getattr(fund, 'mf_name', '')} on {tx_date}."
         )
 

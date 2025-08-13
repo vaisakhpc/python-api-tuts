@@ -8,22 +8,41 @@ from api.models import User
 from django.conf import settings
 import datetime
 from rest_framework.permissions import AllowAny
+import os
+
+def render_email_template(template_path, context):
+    with open(template_path, 'r', encoding='utf-8') as f:
+        template = f.read()
+    for key, value in context.items():
+        template = template.replace(f'{{{{{key}}}}}', str(value))
+    return template
+
 
 def send_registration_email(api_user):
     reset_code = uuid.uuid4().hex
     api_user.reset_code = reset_code
     api_user.is_active = False
-    api_user.reset_expiry = datetime.datetime.now() + datetime.timedelta(hours=24)
+    expiry_hours = int(os.environ.get("RESET_EXPIRY_HOURS", 24))
+    api_user.reset_expiry = datetime.datetime.now() + datetime.timedelta(hours=expiry_hours)
     api_user.save()
     fe_host = getattr(settings, "FRONTEND_URL", "http://localhost:8080")
-    link = (
-        f"{fe_host}/set-password?code={reset_code}&email={api_user.email}"
+    link = f"{fe_host}/set-password?code={reset_code}&email={api_user.email}"
+    context = {
+        "name": api_user.name,
+        "link": link,
+        "expiry_hours": expiry_hours,
+        "year": datetime.datetime.now().year
+    }
+    html_message = render_email_template(
+        os.path.join(os.path.dirname(__file__), '../email_templates/registration_email.html'),
+        context
     )
     send_mail(
         subject="Set your password",
         message=f"Hi {api_user.name}, your link to create your password is here: {link}",
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[api_user.email],
+        html_message=html_message,
     )
 
 
@@ -42,17 +61,27 @@ class ResendRegistrationEmailView(APIView):
 def send_forgot_password_email(api_user):
     reset_code = uuid.uuid4().hex
     api_user.reset_code = reset_code
-    api_user.reset_expiry = datetime.datetime.now() + datetime.timedelta(hours=24)
+    expiry_hours = int(os.environ.get("RESET_EXPIRY_HOURS", 24))
+    api_user.reset_expiry = datetime.datetime.now() + datetime.timedelta(hours=expiry_hours)
     api_user.save()
     fe_host = getattr(settings, "FRONTEND_URL", "http://localhost:8080")
-    link = (
-        f"{fe_host}/set-password?code={reset_code}&email={api_user.email}&forgot=1"
+    link = f"{fe_host}/set-password?code={reset_code}&email={api_user.email}&forgot=1"
+    context = {
+        "name": api_user.name,
+        "link": link,
+        "expiry_hours": expiry_hours,
+        "year": datetime.datetime.now().year
+    }
+    html_message = render_email_template(
+        os.path.join(os.path.dirname(__file__), '../email_templates/forgot_password_email.html'),
+        context
     )
     send_mail(
         subject="Reset your password",
         message=f"Hi {api_user.name}, your link to reset your password is here: {link}",
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[api_user.email],
+        html_message=html_message,
     )
 
 class ForgotPasswordEmailView(APIView):

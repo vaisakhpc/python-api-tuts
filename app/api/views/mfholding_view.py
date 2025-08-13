@@ -22,74 +22,62 @@ from api.pagination import StandardResultsSetPagination
 allowed_fields = {"units", "nav", "transacted_at"}
 
 
-class MFHoldingViewSet(
-    mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet
-):  # Not ModelViewSet, since we return custom structure
+class MFHoldingViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet):
+    # Not ModelViewSet, since we return custom structure
     authentication_classes = [CustomerUUIDAuthentication]
     permission_classes = [IsActiveCustomer, IsHoldingOwner]
     serializer_class = MFHoldingSerializer
 
+    def create(self, request, *args, **kwargs):
+        identifier_type = request.data.get("identifier", "id")
+        identifier_value = request.data.get("fund")
+        fund_model = MFHolding._meta.get_field('fund').related_model
+        fund = None
+        if identifier_type in ["id", "", None]:
+            fund = fund_model.objects.filter(id=identifier_value).first()
+        elif identifier_type == "scheme":
+            fund = fund_model.objects.filter(mf_schema_code=identifier_value).first()
+        elif identifier_type == "isin":
+            fund = fund_model.objects.filter(isin_growth=identifier_value).first()
+        if not fund:
+            return Response({"statusCode": 400, "errorMessage": f"Fund not found for {identifier_type}: {identifier_value}"}, status=status.HTTP_400_BAD_REQUEST)
+        data = request.data.copy()
+        data["fund"] = fund.id
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response({"statusCode": 201, "data": serializer.data}, status=status.HTTP_201_CREATED, headers=headers)
+
     def get_queryset(self):
-        # Optionally, only show funds with open positions; adjust as you wish
-        queryset = MFHolding.objects.filter(user=self.request.user).select_related(
-            "fund"
-        )
-        # Add filtering by fund ID if provided in the query parameters
+        queryset = MFHolding.objects.filter(user=self.request.user).select_related("fund")
         fund_id = self.request.query_params.get("fund")
         if fund_id:
             queryset = queryset.filter(fund_id=fund_id)
-
         return queryset
 
     def perform_create(self, serializer):
         data = serializer.validated_data
         user = self.request.user
+        fund = data["fund"]
         # --- Validate NAV and sales ---
-        validate_nav_and_sales(data, data["fund"], user)
+        validate_nav_and_sales(data, fund, user)
         # --- Save the transaction ---
         serializer.save(user=user)
 
     def list(self, request, *args, **kwargs):
-        if self.request.query_params.get("fund"):
-            queryset = self.get_queryset().order_by("fund", "transacted_at", "id")
-            # Group by fund
-            fund_txn_map = defaultdict(list)
-            for entry in queryset:
-                fund_txn_map[entry.fund.id].append(entry)
+        fund_id = self.request.query_params.get("fund")
+        if fund_id:
+            transactions = MFHolding.objects.filter(user=self.request.user, fund_id=fund_id).select_related("fund").order_by("fund", "transacted_at", "id")
         else:
-            # Step 1: Get distinct fund IDs for the user
-            fund_ids = (
-                MFHolding.objects.filter(user=self.request.user)
-                .order_by("fund_id")  # Required for distinct to work properly
-                .distinct("fund_id")  # Fetch distinct fund IDs
-                .values_list("fund_id", flat=True)  # Extract only the fund_id field
-            )
+            transactions = MFHolding.objects.filter(user=self.request.user).select_related("fund").order_by("fund", "transacted_at", "id")
 
-            # Step 2: Paginate the fund IDs
-            paginator = StandardResultsSetPagination()
-            paginated_fund_ids = paginator.paginate_queryset(
-                fund_ids, request, view=self
-            )
-
-            if not paginated_fund_ids:
-                return paginator.get_paginated_response([])
-
-            # Step 3: Fetch transactions for the paginated funds
-            transactions = (
-                MFHolding.objects.filter(
-                    user=self.request.user, fund_id__in=paginated_fund_ids
-                )
-                .select_related("fund")
-                .order_by("fund", "transacted_at", "id")
-            )
-
-            # Step 3: Group transactions by fund
-            fund_txn_map = defaultdict(list)
-            for txn in transactions:
-                fund_txn_map[txn.fund.id].append(txn)
+        fund_txn_map = defaultdict(list)
+        for txn in transactions:
+            fund_txn_map[txn.fund.id].append(txn)
 
         results = []
-        for fund_id, txns in fund_txn_map.items():
+        for fund_key, txns in fund_txn_map.items():
             fund = txns[0].fund
             txn_list = []
             net_units = 0
@@ -119,7 +107,6 @@ class MFHoldingViewSet(
                     sell_cashflows.append(float(t.units) * float(t.nav))
                     sell_dates.append(t.transacted_at)
 
-            # Net open units
             txn_base = [
                 {
                     "type": t.type,
@@ -133,19 +120,14 @@ class MFHoldingViewSet(
             total_invested = round(total_invested, 2)
             net_units = round(net_units, 4)
 
-            # 2. NAV/latest
             latest_nav = float(fund.latest_nav or 0)
             latest_nav_date = fund.latest_nav_date or date.today()
             current_value = round(net_units * latest_nav, 2)
 
-            # 3. Profit/returns (on open units/cost)
             profit = current_value - total_invested
             abs_return = (profit / total_invested * 100) if total_invested else None
-
-            # 4. Realized (optional, unchanged)
             realized_redemptions = round(total_sold_value, 2)
 
-            # 5. XIRR (all cashflows, with final value as inflow)
             cashflows = []
             dates = []
             for t in txn_base:
@@ -185,6 +167,20 @@ class MFHoldingViewSet(
                     "transactions": txn_list,
                 }
             )
+
+        if fund_id:
+            return Response(results, status=status.HTTP_200_OK)
+        
+        # Only sort if not filtering by fund
+        order_by = request.query_params.get("order_by", "profit.current_value")
+        order_dir = request.query_params.get("order_dir", "desc")
+        def get_sort_key(item):
+            keys = order_by.split('.')
+            value = item
+            for k in keys:
+                value = value.get(k) if isinstance(value, dict) else None
+            return value if value is not None else 0
+        results.sort(key=get_sort_key, reverse=(order_dir == "desc"))
 
         return Response(results, status=status.HTTP_200_OK)
 

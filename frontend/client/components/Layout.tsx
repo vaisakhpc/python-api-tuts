@@ -94,7 +94,7 @@ export default function Layout({ children }: LayoutProps) {
           <div className="flex h-16 items-center justify-between">
             {/* Logo */}
             <Link to="/" className="flex items-center space-x-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg">
                 <InFolioLogo size="md" />
               </div>
               <span className="text-xl font-bold text-foreground">InFolio</span>
@@ -316,7 +316,7 @@ export default function Layout({ children }: LayoutProps) {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="space-y-4">
               <Link to="/" className="flex items-center space-x-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg">
                   <InFolioLogo size="md" />
                 </div>
                 <span className="text-xl font-bold">InFolio</span>

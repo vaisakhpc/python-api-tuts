@@ -109,7 +109,7 @@ export default function Register() {
           {/* Logo and Title */}
           <div className="text-center">
             <Link to="/" className="flex items-center justify-center space-x-2 mb-6">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg">
                 <InFolioLogo size="lg" />
               </div>
               <span className="text-2xl font-bold text-foreground">InFolio</span>
