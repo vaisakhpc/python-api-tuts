@@ -1,2 +1,3 @@
 from .token_obtain_pair_serializer import MyTokenObtainPairSerializer
 from .user_serializer import UserSerializer
+from .account_serializer import AccountSerializer

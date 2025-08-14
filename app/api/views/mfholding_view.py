@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from api.models import MFHolding, FundHistoricalNAV
+from api.models import MFHolding, FundHistoricalNAV, Account
 from api.serializers.mutual_fund_detail_serializer import MutualFundDetailSerializer
 from api.authentication import CustomerUUIDAuthentication
 from api.permissions import IsActiveCustomer, IsHoldingOwner
@@ -44,6 +44,17 @@ class MFHoldingViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.
             return Response({"statusCode": 400, "errorMessage": f"Fund not found for {identifier_type}: {identifier_value}"}, status=status.HTTP_400_BAD_REQUEST)
         data = request.data.copy()
         data["fund"] = fund.id
+        # Resolve account: use provided account if belongs to user; else use primary
+        acc_id = request.data.get("account")
+        account = None
+        if acc_id:
+            account = Account.objects.filter(id=acc_id, user=request.user).first()
+        if not account:
+            account = Account.objects.filter(user=request.user, is_primary=True).first()
+            # If user has no accounts, auto-create a primary account
+            if not account:
+                account = Account.objects.create(user=request.user, name="Primary", is_primary=True)
+        data["account"] = account.id if account else None
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -51,10 +62,13 @@ class MFHoldingViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.
         return Response({"statusCode": 201, "data": serializer.data}, status=status.HTTP_201_CREATED, headers=headers)
 
     def get_queryset(self):
-        queryset = MFHolding.objects.filter(user=self.request.user).select_related("fund")
+        queryset = MFHolding.objects.filter(user=self.request.user).select_related("fund", "account")
         fund_id = self.request.query_params.get("fund")
+        account_id = self.request.query_params.get("account")
         if fund_id:
             queryset = queryset.filter(fund_id=fund_id)
+        if account_id:
+            queryset = queryset.filter(account_id=account_id)
         return queryset
 
     def perform_create(self, serializer):
@@ -68,10 +82,13 @@ class MFHoldingViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.
 
     def list(self, request, *args, **kwargs):
         fund_id = self.request.query_params.get("fund")
+        account_id = self.request.query_params.get("account")
+        base_qs = MFHolding.objects.filter(user=self.request.user).select_related("fund").order_by("fund", "transacted_at", "id")
         if fund_id:
-            transactions = MFHolding.objects.filter(user=self.request.user, fund_id=fund_id).select_related("fund").order_by("fund", "transacted_at", "id")
-        else:
-            transactions = MFHolding.objects.filter(user=self.request.user).select_related("fund").order_by("fund", "transacted_at", "id")
+            base_qs = base_qs.filter(fund_id=fund_id)
+        if account_id:
+            base_qs = base_qs.filter(account_id=account_id)
+        transactions = list(base_qs)
 
         fund_txn_map = defaultdict(list)
         for txn in transactions:
@@ -219,7 +236,7 @@ class MFHoldingViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.
         fund = instance.fund
         user = instance.user
 
-        # Only validate for BUY transactionsx
+        # Only validate for BUY transactions
         if instance.type == "BUY":
             holdings = (
                 MFHolding.objects.filter(user=user, fund=fund)
@@ -238,8 +255,8 @@ class MFHoldingViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-        instance.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+            instance.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=["delete"], url_path="purge")
     def purge(self, request, *args, **kwargs):
@@ -252,10 +269,12 @@ class MFHoldingViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.
         - DELETE /api/mfholdings/purge/?fund=123        -> deletes all user's transactions for fund 123
         """
         fund_id_param = request.query_params.get("fund")
+        account_id_param = request.query_params.get("account")
         qs = MFHolding.objects.filter(user=request.user)
 
         scope = "all"
         fund_id_val = None
+        account_id_val = None
         if fund_id_param is not None and str(fund_id_param).strip() != "":
             try:
                 fund_id_val = int(fund_id_param)
@@ -266,16 +285,26 @@ class MFHoldingViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.
                     {"statusCode": 400, "errorMessage": "Invalid fund id"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+        if account_id_param is not None and str(account_id_param).strip() != "":
+            try:
+                account_id_val = int(account_id_param)
+                qs = qs.filter(account_id=account_id_val)
+                scope = "account" if scope == "all" else "fund_account"
+            except ValueError:
+                return Response(
+                    {"statusCode": 400, "errorMessage": "Invalid account id"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         # Perform bulk delete; returns (num_deleted, details)
         deleted_count, _ = qs.delete()
 
-        # If delete requested with a fund id and nothing was deleted, treat as bad request
-        if scope == "fund" and deleted_count == 0:
+        # If delete requested with filters and nothing was deleted, treat as bad request
+        if scope != "all" and deleted_count == 0:
             return Response(
                 {
                     "statusCode": 400,
-                    "errorMessage": "No such fund exists",
+                    "errorMessage": "No transactions found for the given filters.",
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -287,6 +316,7 @@ class MFHoldingViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.
                     "deleted": deleted_count,
                     "scope": scope,
                     "fund_id": fund_id_val,
+                    "account_id": account_id_val,
                 },
             },
             status=status.HTTP_200_OK,

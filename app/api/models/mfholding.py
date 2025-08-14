@@ -2,6 +2,7 @@ from django.db import models
 from .user import User
 from .mutual_fund import MutualFund
 from django.utils import timezone
+from .account import Account
 
 
 class MFHolding(models.Model):
@@ -16,6 +17,9 @@ class MFHolding(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="holdings")
     fund = models.ForeignKey(
         MutualFund, on_delete=models.CASCADE, related_name="holdings"
+    )
+    account = models.ForeignKey(
+        Account, on_delete=models.PROTECT, related_name="holdings", null=True, blank=True
     )
     type = models.CharField(
         max_length=4, choices=TRANSACTION_TYPE_CHOICES, default="BUY"

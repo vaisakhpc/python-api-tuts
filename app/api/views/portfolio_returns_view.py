@@ -4,7 +4,6 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from api.models import MFHolding
 from api.utils.xirr import xirr
-from datetime import date as dt_date
 from datetime import timedelta
 from django.utils import timezone
 from api.utils.fifo_util import fifo_open_lots
@@ -22,12 +21,19 @@ class PortfolioReturnsView(APIView):
         logger = logging.getLogger(__name__)
         ten_days_ago = timezone.localdate() - timedelta(days=10)
         user = request.user
+        # Optional account filter
+        account_id_param = request.query_params.get("account")
+        account_id = None
+        if account_id_param is not None and str(account_id_param).strip() != "":
+            try:
+                account_id = int(account_id_param)
+            except ValueError:
+                return Response({"statusCode": 400, "errorMessage": "Invalid account id"}, status=400)
         # Only include funds updated in the last 10 days (active funds)
-        txns = (
-            MFHolding.objects.filter(user=user, fund__latest_nav_date__gte=ten_days_ago)
-            .select_related("fund")
-            .order_by("fund", "transacted_at", "id")
-        )
+        base_qs = MFHolding.objects.filter(user=user, fund__latest_nav_date__gte=ten_days_ago)
+        if account_id is not None:
+            base_qs = base_qs.filter(account_id=account_id)
+        txns = base_qs.select_related("fund").order_by("fund", "transacted_at", "id")
 
         # Gather all txns as dicts (flat for XIRR, FIFO)
         txn_list = [
@@ -76,7 +82,7 @@ class PortfolioReturnsView(APIView):
         for lot in open_lots:
             fund_obj = [t["fund_obj"] for t in txn_list if t["fund"] == lot["fund"]][0]
             latest_nav = float(fund_obj.latest_nav or 0)
-            latest_nav_date = fund_obj.latest_nav_date or date.today()
+            latest_nav_date = fund_obj.latest_nav_date or timezone.localdate()
             value = lot["units_left"] * latest_nav
             if value > 0:
                 cashflows.append(value)
@@ -92,12 +98,13 @@ class PortfolioReturnsView(APIView):
                 logger.warning(f"XIRR calculation failed: {traceback.format_exc()}")
                 xirr_val = None
 
-        return Response(
-            {
-                "total_invested": total_invested,
-                "current_value": current_value,
-                "profit": profit,
-                "absolute_return": absolute_return,
-                "xirr": xirr_val,
-            }
-        )
+        payload = {
+            "total_invested": total_invested,
+            "current_value": current_value,
+            "profit": profit,
+            "absolute_return": absolute_return,
+            "xirr": xirr_val,
+        }
+        if account_id is not None:
+            payload["account_id"] = account_id
+        return Response(payload)

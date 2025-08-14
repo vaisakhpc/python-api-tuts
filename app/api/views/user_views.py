@@ -2,13 +2,14 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
-from ..models import User
+from ..models import User, Account
 from ..serializers import UserSerializer
 from ..permissions import IsActiveUser
 from django.core.mail import send_mail
 from django.conf import settings
 from api.views.user_registration_view import send_registration_email
 from rest_framework.exceptions import ValidationError
+from django.db import transaction
 
 
 class UserViewSet(viewsets.ViewSet):
@@ -83,7 +84,15 @@ class UserViewSet(viewsets.ViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        user = serializer.save()
+        # Create user and primary account atomically
+        with transaction.atomic():
+            user = serializer.save()
+            # Ensure a primary account exists for the new user
+            Account.objects.get_or_create(
+                user=user,
+                name="Primary",
+                defaults={"is_primary": True},
+            )
 
         # Send registration email (only for newly created users)
         send_registration_email(user)

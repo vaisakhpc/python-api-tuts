@@ -5,7 +5,7 @@ from datetime import datetime
 from collections import defaultdict
 from django.db.models import Q
 
-from api.models import MutualFund, FundHistoricalNAV, MFHolding
+from api.models import MutualFund, FundHistoricalNAV, MFHolding, Account
 
 SUPPORTED_ORDER_TYPES = {"buy": MFHolding.TYPE_BUY, "sell": MFHolding.TYPE_SELL}
 
@@ -134,6 +134,11 @@ def process_kuvera_transactions(user, rows):
             units=units,
             nav=nav_val,
         )
+        # Attach to user's primary account
+        primary_acc = Account.objects.filter(user=user, is_primary=True).first()
+        if primary_acc is None:
+            primary_acc = Account.objects.create(user=user, name="Primary", is_primary=True)
+        new_holding.account = primary_acc
         new_holdings_to_create.append(new_holding)
 
     return errors, new_holdings_to_create
@@ -245,6 +250,10 @@ def process_self_transactions(user, rows, column_map):
         else:
             holdings[fund.id] += units
         # Prepare object
+        # Ensure account
+        primary_acc = Account.objects.filter(user=user, is_primary=True).first()
+        if primary_acc is None:
+            primary_acc = Account.objects.create(user=user, name="Primary", is_primary=True)
         new_holdings.append(
             MFHolding(
                 user=user,
@@ -253,6 +262,7 @@ def process_self_transactions(user, rows, column_map):
                 type=mf_type,
                 units=units,
                 nav=nav_val,
+                account=primary_acc,
             )
         )
     return errors, new_holdings

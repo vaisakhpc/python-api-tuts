@@ -10,6 +10,7 @@ class MFHoldingSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "fund",
+            "account",
             "nav",
             "units",
             "type",
