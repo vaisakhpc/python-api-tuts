@@ -3,11 +3,27 @@ import csv
 import io
 from datetime import datetime
 from collections import defaultdict
+from typing import Optional
 from django.db.models import Q
 
 from api.models import MutualFund, FundHistoricalNAV, MFHolding, Account
 
 SUPPORTED_ORDER_TYPES = {"buy": MFHolding.TYPE_BUY, "sell": MFHolding.TYPE_SELL}
+
+
+def get_target_account(user, account_id: Optional[int] = None) -> Account:
+    """
+    Resolve the target account for imported holdings.
+    Priority: explicit account_id for this user -> primary account -> create primary.
+    """
+    acc = None
+    if account_id is not None:
+        acc = Account.objects.filter(user=user, id=account_id).first()
+    if acc is None:
+        acc = Account.objects.filter(user=user, is_primary=True).first()
+    if acc is None:
+        acc = Account.objects.create(user=user, name="Primary", is_primary=True)
+    return acc
 
 
 def parse_date_safe(date_str):
@@ -58,7 +74,7 @@ def load_existing_holdings(user, fund_ids):
     return holdings
 
 
-def process_kuvera_transactions(user, rows):
+def process_kuvera_transactions(user, rows, account_id: Optional[int] = None):
     # Filter, map funds, sort, prepare, and validate
     # Return (errors, new_holdings_to_create)
     errors = []
@@ -134,13 +150,12 @@ def process_kuvera_transactions(user, rows):
             units=units,
             nav=nav_val,
         )
-        # Attach to user's primary account
-        primary_acc = Account.objects.filter(user=user, is_primary=True).first()
-        if primary_acc is None:
-            primary_acc = Account.objects.create(user=user, name="Primary", is_primary=True)
-        new_holding.account = primary_acc
+        # Attach to selected account if provided; else fallback to user's primary
+        selected_acc = get_target_account(user, account_id)
+        new_holding.account = selected_acc
         new_holdings_to_create.append(new_holding)
-
+    print(new_holdings_to_create)
+    print(errors)
     return errors, new_holdings_to_create
 
 
@@ -158,7 +173,7 @@ def clean_csv_rows(file_obj):
     return clean_rows
 
 
-def process_self_transactions(user, rows, column_map):
+def process_self_transactions(user, rows, column_map, account_id: Optional[int] = None):
     """
     Processes arbitrary user-uploaded transaction CSVs according to their mapping.
     Returns (errors, new_holdings_to_create)
@@ -250,10 +265,8 @@ def process_self_transactions(user, rows, column_map):
         else:
             holdings[fund.id] += units
         # Prepare object
-        # Ensure account
-        primary_acc = Account.objects.filter(user=user, is_primary=True).first()
-        if primary_acc is None:
-            primary_acc = Account.objects.create(user=user, name="Primary", is_primary=True)
+        # Resolve account: selected or fallback to primary
+        selected_acc = get_target_account(user, account_id)
         new_holdings.append(
             MFHolding(
                 user=user,
@@ -262,7 +275,7 @@ def process_self_transactions(user, rows, column_map):
                 type=mf_type,
                 units=units,
                 nav=nav_val,
-                account=primary_acc,
+                account=selected_acc,
             )
         )
     return errors, new_holdings

@@ -58,6 +58,11 @@ function Holdings() {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  // Import dialog state
+  const [importSource, setImportSource] = useState<'kuvera' | 'self'>('kuvera');
+  const [importAccountId, setImportAccountId] = useState<number | null>(null);
+  const [importAccountLocked, setImportAccountLocked] = useState<boolean>(false);
+  const [importError, setImportError] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const calendarRef = useRef<HTMLDivElement>(null);
 
@@ -88,6 +93,174 @@ function Holdings() {
   const [globalPurgeSuccess, setGlobalPurgeSuccess] = useState<boolean>(false);
   const [globalPurgeError, setGlobalPurgeError] = useState<string>("");
 
+  // Accounts state and filters
+  type Account = { id: number; name: string; is_primary: boolean };
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<"all" | number>("all");
+  const [addDialogAccountId, setAddDialogAccountId] = useState<number | null>(null);
+  const [addDialogAccountLocked, setAddDialogAccountLocked] = useState<boolean>(false);
+  // Account management UI state (Manage dialog)
+  const [manageOpen, setManageOpen] = useState(false);
+  const [accountMsg, setAccountMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [renameLoading, setRenameLoading] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [addAccountName, setAddAccountName] = useState("");
+  const [addLoading, setAddLoading] = useState(false);
+
+  const getPrimaryAccountId = (list?: Account[]) => {
+    const source = list ?? accounts;
+    return source.find(a => a.is_primary)?.id ?? (source[0]?.id ?? null);
+  };
+
+  const fetchAccounts = async () => {
+    try {
+      const encodedToken = localStorage.getItem("access_token");
+      const token = encodedToken ? decodeToken(encodedToken) : null;
+      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/accounts/`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const list: Account[] = Array.isArray(data) ? data : (data.data ?? []);
+        setAccounts(list);
+        const primaryId = getPrimaryAccountId(list);
+        setAddDialogAccountId(primaryId);
+        // Keep selectedAccountId if it still exists; else fall back to 'all'
+  if (selectedAccountId !== 'all' && !list.some(a => a.id === selectedAccountId)) {
+          setSelectedAccountId('all');
+        }
+      }
+    } catch {
+      // ignore silently for now
+    }
+  };
+
+  const getAccountById = (id: number | null) => (id == null ? undefined : accounts.find(a => a.id === id));
+
+  const handleMakePrimary = async (id: number) => {
+    try {
+      const encodedToken = localStorage.getItem("access_token");
+      const token = encodedToken ? decodeToken(encodedToken) : null;
+      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/accounts/${id}/make_primary/`, {
+        method: 'POST',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+      });
+      if (res.ok) {
+        setAccountMsg({ type: 'success', text: 'Marked as primary.' });
+        fetchAccounts();
+        setTimeout(() => setAccountMsg(null), 2500);
+      } else {
+        const j = await res.json().catch(() => ({} as any));
+        setAccountMsg({ type: 'error', text: j?.errorMessage || 'Failed to mark as primary.' });
+        setTimeout(() => setAccountMsg(null), 3000);
+      }
+    } catch {
+      setAccountMsg({ type: 'error', text: 'Network error marking as primary.' });
+      setTimeout(() => setAccountMsg(null), 3000);
+    }
+  };
+
+  const startInlineRename = (id: number) => {
+    const acc = getAccountById(id);
+    setEditingAccountId(id);
+    setEditingName(acc?.name || "");
+  };
+
+  const submitRename = async () => {
+    if (!editingAccountId || !editingName.trim()) return;
+    setRenameLoading(true);
+    try {
+      const encodedToken = localStorage.getItem("access_token");
+      const token = encodedToken ? decodeToken(encodedToken) : null;
+      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/accounts/${editingAccountId}/`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ name: editingName.trim() })
+      });
+      if (res.ok) {
+        setEditingAccountId(null);
+        setAccountMsg({ type: 'success', text: 'Account renamed.' });
+        await fetchAccounts();
+        setTimeout(() => setAccountMsg(null), 2500);
+      } else {
+        const j = await res.json().catch(() => ({} as any));
+        setAccountMsg({ type: 'error', text: j?.errorMessage || 'Rename failed.' });
+        setTimeout(() => setAccountMsg(null), 3000);
+      }
+    } catch {
+      setAccountMsg({ type: 'error', text: 'Network error renaming account.' });
+      setTimeout(() => setAccountMsg(null), 3000);
+    }
+    setRenameLoading(false);
+  };
+
+  const submitDelete = async () => {
+    if (!deleteConfirmId) return;
+    setDeleteLoading(true);
+    try {
+      const encodedToken = localStorage.getItem("access_token");
+      const token = encodedToken ? decodeToken(encodedToken) : null;
+      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/accounts/${deleteConfirmId}/`, {
+        method: 'DELETE',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+      });
+      if (res.status === 204) {
+        setDeleteConfirmId(null);
+        if (selectedAccountId === deleteConfirmId) setSelectedAccountId('all');
+        setAccountMsg({ type: 'success', text: 'Account deleted.' });
+        await fetchAccounts();
+        await fetchHoldings();
+        await fetchPortfolioSummary();
+        setTimeout(() => setAccountMsg(null), 2500);
+      } else {
+        const j = await res.json().catch(() => ({} as any));
+        setAccountMsg({ type: 'error', text: j?.errorMessage || 'Delete failed.' });
+        setTimeout(() => setAccountMsg(null), 3000);
+      }
+    } catch {
+      setAccountMsg({ type: 'error', text: 'Network error deleting account.' });
+      setTimeout(() => setAccountMsg(null), 3000);
+    }
+    setDeleteLoading(false);
+  };
+
+  const submitAddAccount = async () => {
+    if (!addAccountName.trim()) return;
+    setAddLoading(true);
+    try {
+      const encodedToken = localStorage.getItem("access_token");
+      const token = encodedToken ? decodeToken(encodedToken) : null;
+      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/accounts/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ name: addAccountName.trim() })
+      });
+      const j = await res.json().catch(() => ({} as any));
+      if (res.status === 201) {
+        setAccountMsg({ type: 'success', text: 'Account created.' });
+        setAddAccountName("");
+        await fetchAccounts();
+        setTimeout(() => setAccountMsg(null), 2500);
+      } else {
+        setAccountMsg({ type: 'error', text: j?.errorMessage || 'Create failed.' });
+        setTimeout(() => setAccountMsg(null), 3000);
+      }
+    } catch {
+      setAccountMsg({ type: 'error', text: 'Network error creating account.' });
+      setTimeout(() => setAccountMsg(null), 3000);
+    }
+    setAddLoading(false);
+  };
+
 
   const fetchPortfolioSummary = async () => {
     setIssummaryLoading(true);
@@ -95,7 +268,8 @@ function Holdings() {
     try {
       const encodedToken = localStorage.getItem("access_token");
       const token = encodedToken ? decodeToken(encodedToken) : null;
-      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/portfolio-returns/`, {
+      const qs = selectedAccountId !== "all" ? `?account=${selectedAccountId}` : "";
+      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/portfolio-returns/${qs}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const result = await res.json();
@@ -140,8 +314,9 @@ function Holdings() {
     try {
       const encodedToken = localStorage.getItem("access_token");
       const token = encodedToken ? decodeToken(encodedToken) : null;
+      const qs = selectedAccountId !== "all" ? `?account=${selectedAccountId}` : "";
       // Remove order_by/order_dir from API call, fetch all holdings
-      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/mfholdings/`, {
+      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/mfholdings/${qs}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const result = await res.json();
@@ -159,6 +334,17 @@ function Holdings() {
   useEffect(() => {
     fetchHoldings();
   }, []); // Only run on mount
+
+  // Load accounts on mount
+  useEffect(() => {
+    fetchAccounts();
+  }, []);
+
+  // Refetch when account filter changes
+  useEffect(() => {
+    fetchHoldings();
+    fetchPortfolioSummary();
+  }, [selectedAccountId]);
 
   // Defensive mapping for holdings: handle null, empty, or paginated response
   const holdingsArray = Array.isArray(holdings)
@@ -286,6 +472,7 @@ function Holdings() {
         units: formData.quantity,
         transacted_at: formData.date,
         identifier: addForFundMode ? "id" : "scheme",
+  ...(addDialogAccountId ? { account: addDialogAccountId } : {}),
       };
       const encodedToken = localStorage.getItem("access_token");
       const token = encodedToken ? decodeToken(encodedToken) : null;
@@ -300,7 +487,6 @@ function Holdings() {
       const result = await res.json();
       if (result.statusCode === 201) {
         setAddSuccess(true);
-        setAddDialogLoading(false);
         // Reload holdings table immediately
         await fetchHoldings();
         await fetchPortfolioSummary();
@@ -310,7 +496,8 @@ function Holdings() {
           setAddForFundMode(false);
           resetForm();
           setAddSuccess(false);
-        }, 2000);
+          setAddDialogLoading(false);
+        }, 1000);
       } else {
         setAddError(result.errorMessage || "Error adding transaction");
         setAddDialogLoading(false);
@@ -460,6 +647,18 @@ function Holdings() {
           ? (holdings as any).results
           : [];
       const raw = rawList.find((h: any) => (h?.fund_id ?? h?.fund) === holding.fundId);
+      // Determine account for this fund row if present from API
+      const accountIdFromHolding = (raw && (raw.account_id || raw.account?.id)) ? Number(raw.account_id || raw.account?.id) : null;
+      console.log("Raw:", raw);
+      console.log("Account ID from holding:", accountIdFromHolding);
+      // For per-fund Add: lock only when a specific account filter is selected.
+      // If "All accounts" is selected, keep the dropdown enabled and default to holding's account (if any) or primary.
+      const isSpecificFilter = selectedAccountId !== "all";
+      const resolvedAccountId = isSpecificFilter
+        ? Number(selectedAccountId)
+        : (accountIdFromHolding ?? getPrimaryAccountId());
+      setAddDialogAccountId(resolvedAccountId ?? null);
+      setAddDialogAccountLocked(isSpecificFilter);
       const isin = raw?.fund_details?.isin_growth || "";
       const startDateStr = raw?.fund_details?.start_date || raw?.fund_details?.inception_date;
       setSelectedFundIsin(isin || "");
@@ -467,6 +666,11 @@ function Holdings() {
     } catch (_) {
       setSelectedFundIsin("");
       setSelectedFundStartDate(null);
+      // Fallback if raw wasn't found
+      const isSpecificFilter = selectedAccountId !== "all";
+      const fallbackId = isSpecificFilter ? Number(selectedAccountId) : getPrimaryAccountId();
+      setAddDialogAccountId(fallbackId);
+      setAddDialogAccountLocked(isSpecificFilter);
     }
     setIsAddDialogOpen(true);
   };
@@ -486,7 +690,8 @@ function Holdings() {
       setFundPurgeLoadingId(fundId);
       const encodedToken = localStorage.getItem("access_token");
       const token = encodedToken ? decodeToken(encodedToken) : null;
-      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/mfholdings/purge/?fund=${fundId}`, {
+      const accountQs = selectedAccountId !== "all" ? `&account=${selectedAccountId}` : "";
+      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/mfholdings/purge/?fund=${fundId}${accountQs}`, {
         method: "DELETE",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -522,7 +727,8 @@ function Holdings() {
     try {
       const encodedToken = localStorage.getItem("access_token");
       const token = encodedToken ? decodeToken(encodedToken) : null;
-      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/mfholdings/purge/`, {
+  const qs = selectedAccountId !== "all" ? `?account=${selectedAccountId}` : "";
+  const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/mfholdings/purge/${qs}`, {
         method: "DELETE",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -546,30 +752,170 @@ function Holdings() {
     }
   };
 
+  // --- CSV validation helpers for frontend (Kuvera) ---
+  const readFileHead = (file: File, maxBytes = 262144): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      try {
+        const blob = file.slice(0, maxBytes);
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Failed to read file"));
+        reader.readAsText(blob);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  };
+
+  const normalizeHeader = (h: string) => h.replace(/^\uFEFF/, "").trim().replace(/\s+/g, " ").toLowerCase();
+
+  // Minimal CSV splitter that handles simple quoted fields
+  const splitCsvLine = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++; // skip escaped quote
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (ch === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  };
+
+  const parseCsvHeaderAndFirstData = (text: string): { headers: string[]; firstData?: string[] } => {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length === 0) return { headers: [] };
+    const headerLine = lines[0];
+    const headers = splitCsvLine(headerLine).map(normalizeHeader);
+    // Find first non-empty data line after header
+    let firstData: string[] | undefined = undefined;
+    for (let i = 1; i < lines.length; i++) {
+      const cells = splitCsvLine(lines[i]);
+      if (cells.join('').length > 0) {
+        firstData = cells;
+        break;
+      }
+    }
+    return { headers, firstData };
+  };
+
+  const validateKuveraCsv = async (file: File): Promise<{ ok: true } | { ok: false; message: string }> => {
+    // Basic extension/type check
+    const nameLower = file.name.toLowerCase();
+    if (!nameLower.endsWith('.csv') && file.type !== 'text/csv') {
+      return { ok: false, message: 'Please upload a .csv file.' };
+    }
+    // Read a head of the file for header + first data row
+    const text = await readFileHead(file).catch(() => '') as string;
+    if (!text) return { ok: false, message: 'Could not read the CSV file.' };
+    const { headers, firstData } = parseCsvHeaderAndFirstData(text);
+    if (!headers || headers.length === 0) {
+      return { ok: false, message: 'CSV header not found.' };
+    }
+    const required = ['date', 'name of the fund', 'order', 'units', 'nav'];
+    const missing = required.filter(r => !headers.includes(r));
+    if (missing.length > 0) {
+      return {
+        ok: false,
+        message: `Missing required columns: ${missing.join(', ')}. Please ensure your file matches the Kuvera export.`
+      };
+    }
+    if (!firstData) {
+      return { ok: false, message: 'CSV file contains no data rows to import.' };
+    }
+    return { ok: true };
+  };
+
   const handleCsvUpload = async () => {
     if (!csvFile) return;
+    if (importSource === 'self') {
+      setImportError('Custom CSV import is coming soon. Please choose Kuvera for now.');
+      return;
+    }
+    setImportError("");
+
+    // Frontend validation for Kuvera CSV before upload
+    if (importSource === 'kuvera') {
+      const check = await validateKuveraCsv(csvFile);
+      if (!check.ok) {
+        const msg = 'message' in check ? check.message : 'Invalid CSV file.';
+        setImportError(msg);
+        return;
+      }
+    }
 
     setUploadStatus('uploading');
-    setUploadProgress(0);
 
-    // Simulate file upload progress
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setUploadStatus('success');
-          // Mock successful import
-          setTimeout(() => {
-            setIsImportDialogOpen(false);
-            setCsvFile(null);
-            setUploadStatus('idle');
-            setUploadProgress(0);
-          }, 2000);
-          return 100;
-        }
-        return prev + 10;
+    try {
+      const form = new FormData();
+      form.append('transactions', csvFile);
+
+      const encodedToken = localStorage.getItem("access_token");
+      const token = encodedToken ? decodeToken(encodedToken) : null;
+
+      const accountQs = importAccountId ? `&account=${importAccountId}` : '';
+      const url = `${API_CONFIG.VITE_API_URL}/api/import-transactions/?type=${importSource}${accountQs}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: form
       });
-    }, 200);
+
+  const result = await res.json().catch(() => ({} as any));
+      if (res.ok && result?.statusCode === 200) {
+        setUploadStatus('success');
+        // Refresh data immediately
+        await fetchHoldings();
+        await fetchPortfolioSummary();
+        // Close after 1s
+        setTimeout(() => {
+          setIsImportDialogOpen(false);
+          setCsvFile(null);
+          setUploadStatus('idle');
+          setImportError("");
+        }, 1000);
+      } else {
+        const msg = result?.errorMessage || 'Failed to import transactions';
+        setImportError(msg);
+        setUploadStatus('idle');
+      }
+    } catch (e) {
+      setImportError('Network error importing transactions');
+      setUploadStatus('idle');
+    }
+  };
+
+  // Validate immediately when user picks a file
+  const handleCsvFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setImportError("");
+    setCsvFile(file);
+    if (!file) return;
+    if (importSource === 'kuvera') {
+      const check = await validateKuveraCsv(file);
+      if (!check.ok) {
+        const msg = 'message' in check ? check.message : 'Invalid CSV file.';
+        setImportError(msg);
+        setCsvFile(null);
+        // Clear the input so the same file can be re-selected after fixing
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -700,7 +1046,28 @@ function Holdings() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Portfolio Summary</CardTitle>
               <div className="flex items-center gap-3">
-                <div className="text-sm whitespace-nowrap">
+                <Button variant="outline" onClick={() => setManageOpen(true)}>Manage</Button>
+                <div className="flex flex-col items-end gap-2">
+                  <div className="w-64">
+                    <Label className="mb-1 text-sm font-semibold">Account</Label>
+                    <Select
+                      value={String(selectedAccountId)}
+                      onValueChange={(val) => setSelectedAccountId(val === 'all' ? 'all' : Number(val))}
+                    >
+                      <SelectTrigger className="h-10 border-primary/60 bg-primary/5 hover:bg-primary/10 focus:ring-2 focus:ring-primary/40 focus:border-primary font-medium shadow-sm">
+                        <SelectValue placeholder="All accounts" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All accounts</SelectItem>
+                        {accounts.map(acc => (
+                          <SelectItem key={acc.id} value={String(acc.id)}>
+                            {acc.name}{acc.is_primary ? " (primary)" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="text-sm whitespace-nowrap">
                 {(() => {
                   const fundCount = paginatedHoldings.length;
                   let buyCount = 0, sellCount = 0;
@@ -719,6 +1086,7 @@ function Holdings() {
                     </span>
                   );
                 })()}
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -811,7 +1179,15 @@ function Holdings() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete all your transactions?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      <span className="text-destructive font-medium">This will remove all your transactions permanently. There is no recovery option.</span>
+                      {selectedAccountId !== "all" ? (
+                        <span className="text-destructive font-medium">
+                          This will remove all your transactions in account '{accounts.find(a => a.id === (selectedAccountId as number))?.name || 'selected account'}' permanently. There is no recovery option.
+                        </span>
+                      ) : (
+                        <span className="text-destructive font-medium">
+                          This will remove all your transactions across all accounts permanently. There is no recovery option.
+                        </span>
+                      )}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -831,11 +1207,21 @@ function Holdings() {
                 if (!open) {
                   setAddForFundMode(false);
                   resetForm();
+                  setAddDialogAccountLocked(false);
                 }
               }}
             >
               <DialogTrigger asChild>
-                <Button onClick={resetForm}>
+                <Button onClick={() => {
+                  resetForm();
+                  if (selectedAccountId !== "all") {
+                    setAddDialogAccountId(Number(selectedAccountId));
+                    setAddDialogAccountLocked(true);
+                  } else {
+                    setAddDialogAccountLocked(false);
+                    setAddDialogAccountId(getPrimaryAccountId());
+                  }
+                }}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add New Transaction
                 </Button>
@@ -857,6 +1243,26 @@ function Holdings() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
+                  {/* Account selection */}
+          <div className="space-y-2">
+                    <Label htmlFor="addAccount">Account</Label>
+                    <Select
+                      value={addDialogAccountId != null ? String(addDialogAccountId) : undefined}
+                      onValueChange={(val) => setAddDialogAccountId(Number(val))}
+                      disabled={addDialogAccountLocked || accounts.length === 0}
+                    >
+            <SelectTrigger id="addAccount" className="h-10 border-primary/60 bg-primary/5 hover:bg-primary/10 focus:ring-2 focus:ring-primary/40 focus:border-primary font-medium shadow-sm">
+                        <SelectValue placeholder={accounts.length ? 'Select account' : 'No accounts'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {accounts.map(acc => (
+                          <SelectItem key={acc.id} value={String(acc.id)}>
+                            {acc.name}{acc.is_primary ? " (primary)" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   {/* Fund Search (hidden in quick-add mode) */}
                   {!addForFundMode && (
                     <div className="space-y-2 relative">
@@ -1001,7 +1407,25 @@ function Holdings() {
                 </div>
               </DialogContent>
             </Dialog>
-            <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+            <Dialog
+              open={isImportDialogOpen}
+              onOpenChange={(open) => {
+                setIsImportDialogOpen(open);
+                if (open) {
+                  setImportError("");
+                  setUploadStatus('idle');
+                  setCsvFile(null);
+                  setImportSource('kuvera');
+                  if (selectedAccountId !== 'all') {
+                    setImportAccountId(Number(selectedAccountId));
+                    setImportAccountLocked(true);
+                  } else {
+                    setImportAccountLocked(false);
+                    setImportAccountId(getPrimaryAccountId());
+                  }
+                }
+              }}
+            >
               <DialogTrigger asChild>
                 <Button variant="outline">
                   <Upload className="mr-2 h-4 w-4" />
@@ -1015,9 +1439,128 @@ function Holdings() {
                     Upload a CSV file to bulk import your transactions
                   </DialogDescription>
                 </DialogHeader>
-                {/* ...existing code for import dialog... */}
                 <div className="space-y-4">
-                  {/* ...existing code... */}
+                  {uploadStatus === 'idle' && (
+                    <>
+                      {/* Account selection for import */}
+                      <div className="space-y-2">
+                        <Label htmlFor="importAccount">Account</Label>
+                        <Select
+                          value={importAccountId != null ? String(importAccountId) : undefined}
+                          onValueChange={(val) => setImportAccountId(Number(val))}
+                          disabled={importAccountLocked || accounts.length === 0}
+                        >
+                          <SelectTrigger id="importAccount" className="h-10">
+                            <SelectValue placeholder={accounts.length ? 'Select account' : 'No accounts'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {accounts.map(acc => (
+                              <SelectItem key={acc.id} value={String(acc.id)}>
+                                {acc.name}{acc.is_primary ? " (primary)" : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Source selection */}
+                      <div className="space-y-2">
+                        <Label htmlFor="importSource">Source</Label>
+                        <Select value={importSource} onValueChange={(val: 'kuvera' | 'self') => setImportSource(val)}>
+                          <SelectTrigger id="importSource" className="h-10">
+                            <SelectValue placeholder="Select source" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="kuvera">Kuvera</SelectItem>
+                            <SelectItem value="self">Self (custom CSV)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {importSource === 'kuvera' && (
+                      <div className="space-y-2">
+                        <Label>CSV File Format</Label>
+                        <div className="p-3 bg-muted rounded-md text-sm">
+                            <p className="font-medium mb-2">Required columns (Kuvera export):</p>
+                            <code className="text-xs break-words">Date, Name of the Fund, Order (Type: Buy or Sell), Units, NAV</code>
+                            <p className="mt-2 text-xs text-muted-foreground">Ensure your CSV matches the Kuvera transaction export format.</p>
+                            <div className="mt-3 text-xs space-y-2">
+                              <div>
+                                <div className="font-medium mb-1">Header example:</div>
+                                <code className="block p-2 bg-background rounded border">
+                                  Date, Name of the Fund, Order, Units, NAV
+                                </code>
+                              </div>
+                              <div>
+                                <div className="font-medium mb-1">Row example:</div>
+                                <code className="block p-2 bg-background rounded border">
+                                  2025-06-30,HDFC Flexicap Growth Direct Plan,buy,228.878,2184.456
+                                </code>
+                              </div>
+                              <p className="text-muted-foreground">Extra columns are fine; we use the required fields only.</p>
+                            </div>
+                        </div>
+                      </div>
+                      )}
+
+                      {importSource === 'self' && (
+                        <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
+                          Custom CSV mapping will be supported soon.
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <Label htmlFor="csvFile">Choose File</Label>
+                        <Input
+                          id="csvFile"
+                          type="file"
+                          accept=".csv"
+                          ref={fileInputRef}
+                          onChange={handleCsvFileChange}
+                        />
+                      </div>
+
+                      {csvFile && (
+                        <div className="p-3 bg-muted rounded-md">
+                          <div className="flex items-center space-x-2">
+                            <FileSpreadsheet className="h-4 w-4" />
+                            <span className="text-sm">{csvFile.name}</span>
+                            <Badge variant="outline">{(csvFile.size / 1024).toFixed(1)} KB</Badge>
+                          </div>
+                        </div>
+                      )}
+
+                      {importError && (
+                        <div className="p-2 rounded bg-red-100 text-red-800 text-sm">{importError}</div>
+                      )}
+
+                      <div className="flex justify-end space-x-2">
+                        <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleCsvUpload} disabled={!csvFile || importSource === 'self' || !!importError}>
+                          Upload
+                        </Button>
+                      </div>
+                    </>
+                  )}
+
+                  {uploadStatus === 'uploading' && (
+                    <div className="space-y-4 text-center">
+                      <div className="text-lg font-medium">Uploading...</div>
+                      <p className="text-sm text-muted-foreground">Processing your CSV file</p>
+                    </div>
+                  )}
+
+                  {uploadStatus === 'success' && (
+                    <div className="text-center space-y-4">
+                      <CheckCircle className="h-12 w-12 text-green-600 mx-auto" />
+                      <div>
+                        <div className="text-lg font-medium">Upload Successful!</div>
+                        <p className="text-sm text-muted-foreground">Your transactions have been imported successfully</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </DialogContent>
             </Dialog>
@@ -1028,7 +1571,11 @@ function Holdings() {
           </div>
         </div>
         {globalPurgeSuccess && (
-          <div className="mb-3 p-2 rounded bg-green-100 text-green-800 font-medium">All transactions were deleted.</div>
+          <div className="mb-3 p-2 rounded bg-green-100 text-green-800 font-medium">
+            {selectedAccountId !== "all"
+              ? `All transactions in account '${accounts.find(a => a.id === (selectedAccountId as number))?.name || 'selected account'}' were deleted.`
+              : 'All transactions across all accounts were deleted.'}
+          </div>
         )}
         {globalPurgeError && (
           <div className="mb-3 p-2 rounded bg-red-100 text-red-800 font-medium">{globalPurgeError}</div>
@@ -1108,7 +1655,15 @@ function Holdings() {
                                     <AlertDialogHeader>
                                       <AlertDialogTitle>Delete all transactions for this fund?</AlertDialogTitle>
                                       <AlertDialogDescription>
-                                        <span className="text-destructive font-medium">This will remove all transactions for this fund permanently. There is no recovery option.</span>
+                                        {selectedAccountId !== "all" ? (
+                                          <span className="text-destructive font-medium">
+                                            This will remove all transactions for this fund in account '{accounts.find(a => a.id === (selectedAccountId as number))?.name || 'selected account'}' permanently. There is no recovery option.
+                                          </span>
+                                        ) : (
+                                          <span className="text-destructive font-medium">
+                                            This will remove all transactions for this fund across all accounts permanently. There is no recovery option.
+                                          </span>
+                                        )}
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -1165,7 +1720,13 @@ function Holdings() {
                                 )}
                                 {fundPurgeSuccess.visible && fundPurgeSuccess.fundId === holding.fundId && (
                                   <div className="mb-2 p-2 rounded bg-green-100 text-green-800 font-medium flex items-center">
-                                    <span>All transactions for this fund were deleted.</span>
+                                    {selectedAccountId !== "all" ? (
+                                      <span>
+                                        All transactions for this fund in account '{accounts.find(a => a.id === (selectedAccountId as number))?.name || 'selected account'}' were deleted.
+                                      </span>
+                                    ) : (
+                                      <span>All transactions for this fund across all accounts were deleted.</span>
+                                    )}
                                   </div>
                                 )}
                                 {fundPurgeError.visible && fundPurgeError.fundId === holding.fundId && (
@@ -1371,6 +1932,76 @@ function Holdings() {
                 </Button>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Manage Accounts Dialog */}
+        <Dialog open={manageOpen} onOpenChange={(o) => { setManageOpen(o); if (!o) { setEditingAccountId(null); setAccountMsg(null); setAddAccountName(""); setDeleteConfirmId(null);} }}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Manage Accounts</DialogTitle>
+              <DialogDescription>Rename, set primary, delete, or add accounts.</DialogDescription>
+            </DialogHeader>
+            {accountMsg && (
+              <div className={`mb-2 p-2 rounded ${accountMsg.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                {accountMsg.text}
+              </div>
+            )}
+            <div className="space-y-3 max-h-80 overflow-y-auto overflow-x-hidden pr-1">
+              {accounts.map(acc => (
+                <div key={acc.id} className="flex items-center w-full gap-3 border rounded px-3 py-2 bg-background">
+                  <div className="flex items-center min-w-0 pr-2 flex-1">
+                    {editingAccountId === acc.id ? (
+                      <Input value={editingName} onChange={(e) => setEditingName(e.target.value)} className="h-8 w-full" />
+                    ) : (
+                      <div className="flex items-center gap-2 min-w-0 font-medium w-full">
+                        <span className="truncate" title={acc.name}>{acc.name}</span>
+                        {acc.is_primary && <span className="shrink-0 text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">Primary</span>}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-end shrink-0 ml-auto">
+                    {editingAccountId === acc.id ? (
+                      <>
+                        <Button size="sm" onClick={submitRename} disabled={renameLoading || !editingName.trim()}>Save</Button>
+                        <Button size="sm" variant="outline" onClick={() => setEditingAccountId(null)}>Cancel</Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button size="sm" variant="ghost" onClick={() => startInlineRename(acc.id)}>Rename</Button>
+                        <Button size="sm" variant="ghost" disabled={acc.is_primary} onClick={() => handleMakePrimary(acc.id)} title={acc.is_primary ? 'Already primary' : 'Make primary'}>
+                          {acc.is_primary ? 'Primary' : 'Make primary'}
+                        </Button>
+                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setDeleteConfirmId(acc.id)}>Delete</Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 border-t pt-3">
+              <div className="flex items-center gap-2">
+                <Input placeholder="Type here to create a new account!" value={addAccountName} onChange={(e) => setAddAccountName(e.target.value)} className="h-9" />
+                <Button onClick={submitAddAccount} disabled={addLoading || !addAccountName.trim()}>{addLoading ? 'Adding…' : 'Add'}</Button>
+              </div>
+            </div>
+            {/* Inline delete confirm */}
+            <AlertDialog open={deleteConfirmId != null} onOpenChange={(o) => { if (!o) setDeleteConfirmId(null); }}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete this account?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete the account. Transactions linked to it may prevent deletion.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={submitDelete} disabled={deleteLoading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    {deleteLoading ? 'Deleting…' : 'Delete'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </DialogContent>
         </Dialog>
       </div>
