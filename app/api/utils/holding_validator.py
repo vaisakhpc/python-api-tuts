@@ -2,7 +2,7 @@ from decimal import Decimal
 from rest_framework import serializers
 from django.conf import settings
 from elasticsearch import Elasticsearch
-from api.models import FundHistoricalNAV, MFHolding
+from api.models import FundHistoricalNAV, MFHolding, Account
 from api.config.es_config import NAV_INDEX_NAME
 from django.db import models
 
@@ -73,6 +73,21 @@ def validate_nav_and_sales(data, fund, user, instance=None):
     units = Decimal(data["units"])
     txn_type = data["type"]
 
+    # Resolve the account for scoping validations:
+    # Prefer account in `data` (may be an object or id), else from instance, else user's primary account.
+    account = data.get("account") if isinstance(data, dict) else None
+    if account is None and instance is not None:
+        account = getattr(instance, "account", None)
+    if account is None:
+        account = Account.objects.filter(user=user, is_primary=True).first()
+    # Normalize to id for filtering and capture name for messaging
+    account_id = getattr(account, "id", account)
+    account_obj = account if hasattr(account, "id") else (
+        Account.objects.filter(id=account_id, user=user).first() if account_id is not None else None
+    )
+    account_name = getattr(account_obj, "name", None) or "selected account"
+    account_phrase = f" in account '{account_name}'"
+
     # NAV validation
     nav_obj = fetch_nav_from_es_or_db(fund, tx_date)
     historical_nav = Decimal(nav_obj.nav)
@@ -86,6 +101,8 @@ def validate_nav_and_sales(data, fund, user, instance=None):
     # Negative sales validation
     if txn_type == "SELL":
         qs = MFHolding.objects.filter(user=user, fund=fund)
+        if account_id is not None:
+            qs = qs.filter(account_id=account_id)
 
         # Date-aware availability check as of tx_date:
         buy_upto = (
@@ -107,27 +124,26 @@ def validate_nav_and_sales(data, fund, user, instance=None):
                 # Edit-specific message
                 if available_at_date <= 0:
                     raise serializers.ValidationError(
-                        f"On {tx_date}, you had 0 units available to sell in {fund.mf_name}. "
+                        f"On {tx_date}, you had 0 units available to sell in {fund.mf_name}{account_phrase}. "
                         f"Adjust other sales or add more units before selling."
                     )
                 raise serializers.ValidationError(
                     f"For this edit on {tx_date}, you can sell at most {avail_fmt} units based on your holdings "
-                    f"(buys before this date minus prior sales) in {fund.mf_name}."
+                    f"(buys before this date minus prior sales) in {fund.mf_name}{account_phrase}."
                 )
             # Create/new SELL message
             if available_at_date <= 0:
                 raise serializers.ValidationError(
-                    f"On {tx_date}, you had 0 units available to sell in {fund.mf_name}. "
+                    f"On {tx_date}, you had 0 units available to sell in {fund.mf_name}{account_phrase}. "
                     f"You cannot sell {round(units, 2)} units."
                 )
             raise serializers.ValidationError(
-                f"On {tx_date}, only {avail_fmt} units were available to sell in {fund.mf_name}. "
+                f"On {tx_date}, only {avail_fmt} units were available to sell in {fund.mf_name}{account_phrase}. "
                 f"You cannot sell {round(units, 2)} units."
             )
-            
-        total_buy = qs.filter(type="BUY").aggregate(total=models.Sum("units"))[
-            "total"
-        ] or Decimal("0")
+        
+        # Account-scoped overall availability (buys minus sells)
+        total_buy = qs.filter(type="BUY").aggregate(total=models.Sum("units"))["total"] or Decimal("0")
 
         # When editing an existing SELL transaction, exclude it from the total_sell sum
         sell_qs = qs.filter(type="SELL")
@@ -138,9 +154,7 @@ def validate_nav_and_sales(data, fund, user, instance=None):
             except Exception:
                 pass
 
-        total_sell = sell_qs.aggregate(total=models.Sum("units"))["total"] or Decimal(
-            "0"
-        )
+        total_sell = sell_qs.aggregate(total=models.Sum("units"))["total"] or Decimal("0")
         net_available = total_buy - total_sell
 
         if units > net_available:
@@ -149,14 +163,14 @@ def validate_nav_and_sales(data, fund, user, instance=None):
                 max_units = net_available.quantize(Decimal("0.0001"))
                 if net_available <= 0:
                     raise serializers.ValidationError(
-                        f"For this edit, no units are available to sell after your other sales. "
+                        f"For this edit, no units are available to sell after your other sales{account_phrase}. "
                         f"Reduce other sales or add more units before selling from {fund.mf_name}."
                     )
                 raise serializers.ValidationError(
                     f"For this edit, you can sell at most {round(max_units, 2)} units based on your current holdings "
-                    f"(buys minus other sales) in {fund.mf_name}."
+                    f"(buys minus other sales) in {fund.mf_name}{account_phrase}."
                 )
             # Default message for create/new SELL
             raise serializers.ValidationError(
-                f"Cannot sell {round(units, 2)} units: only {round(net_available, 2)} units currently held in {fund.mf_name}."
+                f"Cannot sell {round(units, 2)} units: only {round(net_available, 2)} units currently held in {fund.mf_name}{account_phrase}."
             )

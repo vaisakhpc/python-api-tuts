@@ -235,14 +235,14 @@ class MFHoldingViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.
         instance = self.get_object()
         fund = instance.fund
         user = instance.user
+        account_id = getattr(instance, "account_id", None)
 
         # Only validate for BUY transactions
         if instance.type == "BUY":
-            holdings = (
-                MFHolding.objects.filter(user=user, fund=fund)
-                .exclude(id=instance.id)
-                .values("type", "units")
-            )
+            base_qs = MFHolding.objects.filter(user=user, fund=fund)
+            if account_id is not None:
+                base_qs = base_qs.filter(account_id=account_id)
+            holdings = base_qs.exclude(id=instance.id).values("type", "units")
 
             buy_units = sum(h["units"] for h in holdings if h["type"] == "BUY")
             sell_units = sum(h["units"] for h in holdings if h["type"] == "SELL")
@@ -250,13 +250,19 @@ class MFHoldingViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.
             if buy_units < sell_units:
                 return Response(
                     {
-                        "error": f"Cannot delete this BUY transaction. Remaining purchased units({round(buy_units)}) would be less than the total sold units({round(sell_units)}) for this fund."
+                        "statusCode": 400,
+                        "errorMessage": (
+                            f"Cannot delete this BUY transaction. Remaining purchased units({round(buy_units)}) "
+                            f"would be less than the total sold units({round(sell_units)}) for this fund"
+                            + (f" in account '{getattr(instance.account, 'name', 'selected account')}'" if account_id is not None else "")
+                            + "."
+                        ),
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            instance.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
+        instance.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=["delete"], url_path="purge")
     def purge(self, request, *args, **kwargs):
