@@ -12,13 +12,13 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Upload, 
-  Download, 
-  ChevronLeft, 
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Upload,
+  Download,
+  ChevronLeft,
   ChevronRight,
   ChevronDown,
   ChevronRight as ChevronRightIcon,
@@ -72,7 +72,7 @@ function Holdings() {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [fundSuggestions, setFundSuggestions] = useState<Array<{id: number, name: string, isin: string, start_date?: string}>>([]);
+  const [fundSuggestions, setFundSuggestions] = useState<Array<{ id: number, name: string, isin: string, start_date?: string }>>([]);
   const [error, setError] = useState("");
   const [priceError, setPriceError] = useState("");
 
@@ -80,32 +80,39 @@ function Holdings() {
   const [selectedDate, setSelectedDate] = useState<string | null>(formData.date || null);
   const [selectedFundStartDate, setSelectedFundStartDate] = useState<Date | null>(null);
   const [selectedFundIsin, setSelectedFundIsin] = useState<string>("");
+  const [addForFundMode, setAddForFundMode] = useState<boolean>(false);
+  const [fundPurgeSuccess, setFundPurgeSuccess] = useState<{ fundId: number | null, visible: boolean }>({ fundId: null, visible: false });
+  const [fundPurgeError, setFundPurgeError] = useState<{ fundId: number | null, message: string, visible: boolean }>({ fundId: null, message: '', visible: false });
+  const [fundPurgeLoadingId, setFundPurgeLoadingId] = useState<number | null>(null);
+  const [globalPurgeLoading, setGlobalPurgeLoading] = useState<boolean>(false);
+  const [globalPurgeSuccess, setGlobalPurgeSuccess] = useState<boolean>(false);
+  const [globalPurgeError, setGlobalPurgeError] = useState<string>("");
 
 
-const fetchPortfolioSummary = async () => {
-  setIssummaryLoading(true);
-  setError("");
-  try {
-    const encodedToken = localStorage.getItem("access_token");
-    const token = encodedToken ? decodeToken(encodedToken) : null;
-    const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/portfolio-returns/`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const result = await res.json();
-    if (result.statusCode === 200) {
-      setPortfolioSummary(result.data);
-    } else {
-      setError("Error loading portfolio summary");
+  const fetchPortfolioSummary = async () => {
+    setIssummaryLoading(true);
+    setError("");
+    try {
+      const encodedToken = localStorage.getItem("access_token");
+      const token = encodedToken ? decodeToken(encodedToken) : null;
+      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/portfolio-returns/`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const result = await res.json();
+      if (result.statusCode === 200) {
+        setPortfolioSummary(result.data);
+      } else {
+        setError("Error loading portfolio summary");
+      }
+    } catch {
+      setError("Network error loading portfolio summary");
     }
-  } catch {
-    setError("Network error loading portfolio summary");
-  }
-  setIssummaryLoading(false);
-};
+    setIssummaryLoading(false);
+  };
 
-useEffect(() => {
-  fetchPortfolioSummary();
-}, []);
+  useEffect(() => {
+    fetchPortfolioSummary();
+  }, []);
 
   // Search state for holdings
   const [searchQuery, setSearchQuery] = useState("");
@@ -127,31 +134,31 @@ useEffect(() => {
     );
   }
 
-const fetchHoldings = async () => {
-  setIsLoading(true);
-  setError("");
-  try {
-    const encodedToken = localStorage.getItem("access_token");
-    const token = encodedToken ? decodeToken(encodedToken) : null;
-    // Remove order_by/order_dir from API call, fetch all holdings
-    const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/mfholdings/`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const result = await res.json();
-    if (result.statusCode === 200) {
-      setHoldings(result.data);
-    } else {
-      setError("Error loading holdings");
+  const fetchHoldings = async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      const encodedToken = localStorage.getItem("access_token");
+      const token = encodedToken ? decodeToken(encodedToken) : null;
+      // Remove order_by/order_dir from API call, fetch all holdings
+      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/mfholdings/`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const result = await res.json();
+      if (result.statusCode === 200) {
+        setHoldings(result.data);
+      } else {
+        setError("Error loading holdings");
+      }
+    } catch {
+      setError("Network error loading holdings");
     }
-  } catch {
-    setError("Network error loading holdings");
-  }
-  setIsLoading(false);
-};
+    setIsLoading(false);
+  };
 
-useEffect(() => {
-  fetchHoldings();
-}, []); // Only run on mount
+  useEffect(() => {
+    fetchHoldings();
+  }, []); // Only run on mount
 
   // Defensive mapping for holdings: handle null, empty, or paginated response
   const holdingsArray = Array.isArray(holdings)
@@ -166,7 +173,7 @@ useEffect(() => {
       fundId: h.fund_id,
       fundName: h.fund_details?.mf_name || '',
       totalQuantity: h.units,
-      currentPrice: Math.round(Number(h.fund_details?.latest_nav) || 0),
+      currentPrice: Math.round(((Number(h.fund_details?.latest_nav) || 0) * 100)) / 100,
       totalCurrentValue: Math.round(h.profit?.current_value || 0),
       totalInvestedValue: Math.round(h.profit?.total_invested || 0),
       totalGainLoss: Math.round(h.profit?.profit || 0),
@@ -188,6 +195,9 @@ useEffect(() => {
   // Filter holdings by search query
   const paginatedHoldings = filterHoldings(mappedHoldings, searchQuery);
 
+  // Determine if there are any transactions across all holdings
+  const hasAnyTransactions = mappedHoldings.some(h => (h.transactions?.length || 0) > 0);
+
   const resetForm = () => {
     setFormData({
       fundName: "",
@@ -201,6 +211,8 @@ useEffect(() => {
     setFundSuggestions([]);
     setSelectedDate(null);
     setSelectedFundStartDate(null);
+    setSelectedFundIsin("");
+  setAddForFundMode(false);
   };
 
   const validateForm = () => {
@@ -235,11 +247,11 @@ useEffect(() => {
           const flattenedResults = Object.entries(results).flatMap(([type, funds]) =>
             Array.isArray(funds)
               ? funds.map((fund: any) => ({
-                  name: `${fund.mf_name} (${type})`,
-                  id: fund.mf_schema_code,
-                  isin: fund.isin,
-                  start_date: fund.start_date,
-                }))
+                name: `${fund.mf_name} (${type})`,
+                id: fund.mf_schema_code,
+                isin: fund.isin,
+                start_date: fund.start_date,
+              }))
               : []
           );
           setFundSuggestions(flattenedResults);
@@ -254,7 +266,7 @@ useEffect(() => {
     }
   };
 
-  const handleFundSelect = (fund: {id: number, name: string, isin: string, start_date?: string}) => {
+  const handleFundSelect = (fund: { id: number, name: string, isin: string, start_date?: string }) => {
     setFormData(prev => ({ ...prev, fundName: fund.name, fundId: fund.id }));
     setSelectedFundStartDate(fund.start_date ? new Date(fund.start_date) : null);
     setSelectedFundIsin(fund.isin);
@@ -273,7 +285,7 @@ useEffect(() => {
         nav: formData.price,
         units: formData.quantity,
         transacted_at: formData.date,
-        identifier: "scheme",
+        identifier: addForFundMode ? "id" : "scheme",
       };
       const encodedToken = localStorage.getItem("access_token");
       const token = encodedToken ? decodeToken(encodedToken) : null;
@@ -295,6 +307,7 @@ useEffect(() => {
         // Close dialog after 2s
         setTimeout(() => {
           setIsAddDialogOpen(false);
+          setAddForFundMode(false);
           resetForm();
           setAddSuccess(false);
         }, 2000);
@@ -339,7 +352,7 @@ useEffect(() => {
         setEditSuccess({ fundId: formData.fundId || null, visible: true });
         setTimeout(() => {
           setEditSuccess({ fundId: null, visible: false });
-        }, 10000);
+        }, 2500);
 
         await fetchHoldings();
         await fetchPortfolioSummary();
@@ -356,9 +369,9 @@ useEffect(() => {
     setEditDialogLoading(false);
   };
 
-  const [deleteSuccess, setDeleteSuccess] = useState<{fundId: number | null, visible: boolean}>({fundId: null, visible: false});
-  const [deleteError, setDeleteError] = useState<{fundId: number | null, message: string, visible: boolean}>({fundId: null, message: '', visible: false});
-  const [editSuccess, setEditSuccess] = useState<{fundId: number | null, visible: boolean}>({fundId: null, visible: false});
+  const [deleteSuccess, setDeleteSuccess] = useState<{ fundId: number | null, visible: boolean }>({ fundId: null, visible: false });
+  const [deleteError, setDeleteError] = useState<{ fundId: number | null, message: string, visible: boolean }>({ fundId: null, message: '', visible: false });
+  const [editSuccess, setEditSuccess] = useState<{ fundId: number | null, visible: boolean }>({ fundId: null, visible: false });
   const [editError, setEditError] = useState<string>("");
   const [editDialogLoading, setEditDialogLoading] = useState<boolean>(false);
   const handleDeleteTransaction = async (transactionId: number, fundId?: number) => {
@@ -372,24 +385,24 @@ useEffect(() => {
         }
       });
       if (res.ok) {
-        setDeleteSuccess({fundId: fundId ?? null, visible: true});
+        setDeleteSuccess({ fundId: fundId ?? null, visible: true });
         setTimeout(() => {
-          setDeleteSuccess({fundId: null, visible: false});
-        }, 10000);
+          setDeleteSuccess({ fundId: null, visible: false });
+        }, 2500);
         await fetchHoldings();
         await fetchPortfolioSummary();
       } else {
         const errorMsg = (await res.json()).errorMessage;
-        setDeleteError({fundId: fundId ?? null, message: errorMsg || 'Error deleting transaction', visible: true});
+        setDeleteError({ fundId: fundId ?? null, message: errorMsg || 'Error deleting transaction', visible: true });
         setTimeout(() => {
-          setDeleteError({fundId: null, message: '', visible: false});
-        }, 10000);
+          setDeleteError({ fundId: null, message: '', visible: false });
+        }, 2500);
       }
     } catch (error) {
-      setDeleteError({fundId: fundId ?? null, message: 'Network error deleting transaction', visible: true});
+      setDeleteError({ fundId: fundId ?? null, message: 'Network error deleting transaction', visible: true });
       setTimeout(() => {
-        setDeleteError({fundId: null, message: '', visible: false});
-      }, 10000);
+        setDeleteError({ fundId: null, message: '', visible: false });
+      }, 2500);
     }
   };
 
@@ -422,7 +435,40 @@ useEffect(() => {
     setEditError("");
     setPriceError("");
     setIsEditDialogOpen(true);
-    setDeleteSuccess({fundId: null, visible: false});
+    setDeleteSuccess({ fundId: null, visible: false });
+  };
+
+  // Open Add dialog prefilled for a specific fund (no fund search)
+  const openQuickAddDialog = (holding: { fundId: number; fundName: string }) => {
+    setAddError("");
+    setAddSuccess(false);
+    setPriceError("");
+    setAddForFundMode(true);
+    setFormData(prev => ({
+      ...prev,
+      fundName: holding.fundName,
+      fundId: holding.fundId,
+      type: "BUY",
+      quantity: "",
+      price: "",
+      date: ""
+    }));
+    try {
+      const rawList: any[] = Array.isArray(holdings)
+        ? (holdings as any[])
+        : (holdings && typeof holdings === 'object' && Array.isArray((holdings as any).results))
+          ? (holdings as any).results
+          : [];
+      const raw = rawList.find((h: any) => (h?.fund_id ?? h?.fund) === holding.fundId);
+      const isin = raw?.fund_details?.isin_growth || "";
+      const startDateStr = raw?.fund_details?.start_date || raw?.fund_details?.inception_date;
+      setSelectedFundIsin(isin || "");
+      setSelectedFundStartDate(startDateStr ? new Date(startDateStr) : null);
+    } catch (_) {
+      setSelectedFundIsin("");
+      setSelectedFundStartDate(null);
+    }
+    setIsAddDialogOpen(true);
   };
 
   const toggleFundExpansion = (fundId: number) => {
@@ -433,6 +479,71 @@ useEffect(() => {
       newExpanded.add(fundId);
     }
     setExpandedFunds(newExpanded);
+  };
+
+  const handlePurgeFund = async (fundId: number) => {
+    try {
+      setFundPurgeLoadingId(fundId);
+      const encodedToken = localStorage.getItem("access_token");
+      const token = encodedToken ? decodeToken(encodedToken) : null;
+      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/mfholdings/purge/?fund=${fundId}`, {
+        method: "DELETE",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      if (res.ok) {
+        setFundPurgeSuccess({ fundId, visible: true });
+        setTimeout(() => {
+          setFundPurgeSuccess({ fundId: null, visible: false });
+        }, 2500);
+        await fetchHoldings();
+        await fetchPortfolioSummary();
+      } else {
+        const result = await res.json().catch(() => ({} as any));
+        setFundPurgeError({ fundId, message: result?.errorMessage || 'Error deleting all transactions for this fund', visible: true });
+        setTimeout(() => {
+          setFundPurgeError({ fundId: null, message: '', visible: false });
+        }, 3000);
+      }
+    } catch (e) {
+      setFundPurgeError({ fundId, message: 'Network error deleting transactions for this fund', visible: true });
+      setTimeout(() => {
+        setFundPurgeError({ fundId: null, message: '', visible: false });
+      }, 3000);
+    } finally {
+      setFundPurgeLoadingId(null);
+    }
+  };
+
+  const handlePurgeAll = async () => {
+    setGlobalPurgeError("");
+    setGlobalPurgeLoading(true);
+    try {
+      const encodedToken = localStorage.getItem("access_token");
+      const token = encodedToken ? decodeToken(encodedToken) : null;
+      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/mfholdings/purge/`, {
+        method: "DELETE",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      if (res.ok) {
+        setGlobalPurgeSuccess(true);
+        await fetchHoldings();
+        await fetchPortfolioSummary();
+        setTimeout(() => setGlobalPurgeSuccess(false), 2500);
+      } else {
+        const result = await res.json().catch(() => ({} as any));
+        setGlobalPurgeError(result?.errorMessage || 'Error deleting all transactions');
+        setTimeout(() => setGlobalPurgeError(""), 3000);
+      }
+    } catch (e) {
+      setGlobalPurgeError('Network error deleting all transactions');
+      setTimeout(() => setGlobalPurgeError(""), 3000);
+    } finally {
+      setGlobalPurgeLoading(false);
+    }
   };
 
   const handleCsvUpload = async () => {
@@ -588,7 +699,8 @@ useEffect(() => {
           <Card className="mb-6">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Portfolio Summary</CardTitle>
-              <div className="text-sm whitespace-nowrap">
+              <div className="flex items-center gap-3">
+                <div className="text-sm whitespace-nowrap">
                 {(() => {
                   const fundCount = paginatedHoldings.length;
                   let buyCount = 0, sellCount = 0;
@@ -607,6 +719,7 @@ useEffect(() => {
                     </span>
                   );
                 })()}
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -624,8 +737,8 @@ useEffect(() => {
                     "text-2xl font-bold flex items-center justify-center",
                     portfolioSummary.profit >= 0 ? "text-green-600" : "text-red-600"
                   )}>
-                    {portfolioSummary.profit >= 0 ? 
-                      <TrendingUp className="mr-1 h-5 w-5" /> : 
+                    {portfolioSummary.profit >= 0 ?
+                      <TrendingUp className="mr-1 h-5 w-5" /> :
                       <TrendingDown className="mr-1 h-5 w-5" />
                     }
                     {formatCurrency(Math.abs(Math.round(portfolioSummary.profit)))}
@@ -659,11 +772,10 @@ useEffect(() => {
 
         {/* Controls */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div className="flex items-center space-x-4 w-full sm:w-auto">
+          <div className="flex items-center space-x-4 w-full sm:w-auto">
             <div className="relative flex-1 sm:w-80">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
               <Input
-                type="text"
                 placeholder="Search holdings..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -686,12 +798,46 @@ useEffect(() => {
             {/* Funds and transactions summary moved to Portfolio Summary header */}
           </div>
           <div className="flex flex-wrap gap-2">
+            {/* Global Delete All moved here to the left of Add Transaction; show only if any transactions exist */}
+            {hasAnyTransactions && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" disabled={globalPurgeLoading}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {globalPurgeLoading ? 'Deleting…' : 'Delete All'}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete all your transactions?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      <span className="text-destructive font-medium">This will remove all your transactions permanently. There is no recovery option.</span>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handlePurgeAll} disabled={globalPurgeLoading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
             {/* ...existing code for Add Transaction, Import CSV, Export CSV... */}
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <Dialog
+              open={isAddDialogOpen}
+              onOpenChange={(open) => {
+                setIsAddDialogOpen(open);
+                if (!open) {
+                  setAddForFundMode(false);
+                  resetForm();
+                }
+              }}
+            >
               <DialogTrigger asChild>
                 <Button onClick={resetForm}>
                   <Plus className="mr-2 h-4 w-4" />
-                  Add Transaction
+                  Add New Transaction
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">
@@ -705,55 +851,57 @@ useEffect(() => {
                   <div className="mb-4 p-3 rounded bg-red-100 text-red-800 font-medium">{addError}</div>
                 )}
                 <DialogHeader>
-                  <DialogTitle>Add New Transaction</DialogTitle>
+                  <DialogTitle>{addForFundMode ? `Add Transaction - ${formData.fundName}` : 'Add New Transaction'}</DialogTitle>
                   <DialogDescription>
                     Add a new buy/sell transaction to your portfolio
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
-                  {/* Fund Search */}
-                  <div className="space-y-2 relative">
-                    <Label htmlFor="addFundName">Fund Name</Label>
-                    <div className="relative">
-                      <Input
-                        id="addFundName"
-                        type="text"
-                        placeholder="Search fund..."
-                        value={formData.fundName}
-                        onChange={e => handleFundSearch(e.target.value)}
-                        autoComplete="off"
-                        className={(errors.fundName ? "border-destructive " : "") + "fund-input-trim-right"}
-                      />
-                      {formData.fundName && (
-                        <button
-                          type="button"
-                          aria-label="Clear fund name"
-                          onClick={() => { handleFundSearch(""); setSelectedFundStartDate(null); setSelectedFundIsin(""); }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center bg-transparent hover:bg-muted-foreground/20 rounded-full text-green-900 text-xs font-bold close-overlay-button"
-                          tabIndex={0}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                            <path fillRule="evenodd" d="M10 8.586l4.95-4.95a1 1 0 111.414 1.414L11.414 10l4.95 4.95a1 1 0 01-1.414 1.414L10 11.414l-4.95 4.95a1 1 0 01-1.414-1.414L8.586 10l-4.95-4.95A1 1 0 115.05 3.636L10 8.586z" clipRule="evenodd" />
-                          </svg>
-                        </button>
+                  {/* Fund Search (hidden in quick-add mode) */}
+                  {!addForFundMode && (
+                    <div className="space-y-2 relative">
+                      <Label htmlFor="addFundName">Fund Name</Label>
+                      <div className="relative">
+                        <Input
+                          id="addFundName"
+                          type="text"
+                          placeholder="Search fund..."
+                          value={formData.fundName}
+                          onChange={e => handleFundSearch(e.target.value)}
+                          autoComplete="off"
+                          className={(errors.fundName ? "border-destructive " : "") + "fund-input-trim-right"}
+                        />
+                        {formData.fundName && (
+                          <button
+                            type="button"
+                            aria-label="Clear fund name"
+                            onClick={() => { handleFundSearch(""); setSelectedFundStartDate(null); setSelectedFundIsin(""); }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center bg-transparent hover:bg-muted-foreground/20 rounded-full text-green-900 text-xs font-bold close-overlay-button"
+                            tabIndex={0}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                              <path fillRule="evenodd" d="M10 8.586l4.95-4.95a1 1 0 111.414 1.414L11.414 10l4.95 4.95a1 1 0 01-1.414 1.414L10 11.414l-4.95 4.95a1 1 0 01-1.414-1.414L8.586 10l-4.95-4.95A1 1 0 115.05 3.636L10 8.586z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                      {errors.fundName && <p className="text-sm text-destructive">{errors.fundName}</p>}
+                      {/* Fund suggestions dropdown */}
+                      {fundSuggestions.length > 0 && (
+                        <div className="absolute z-20 mt-1 w-full bg-background border rounded shadow-lg max-h-48 overflow-y-auto">
+                          {fundSuggestions.map(fund => (
+                            <div
+                              key={fund.id}
+                              className="px-3 py-2 cursor-pointer hover:bg-muted"
+                              onClick={() => handleFundSelect(fund)}
+                            >
+                              {fund.name}
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
-                    {errors.fundName && <p className="text-sm text-destructive">{errors.fundName}</p>}
-                    {/* Fund suggestions dropdown */}
-                    {fundSuggestions.length > 0 && (
-                      <div className="absolute z-20 mt-1 w-full bg-background border rounded shadow-lg max-h-48 overflow-y-auto">
-                        {fundSuggestions.map(fund => (
-                          <div
-                            key={fund.id}
-                            className="px-3 py-2 cursor-pointer hover:bg-muted"
-                            onClick={() => handleFundSelect(fund)}
-                          >
-                            {fund.name}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  )}
 
                   {/* Transaction Date (Calendar) */}
                   <div className="space-y-2">
@@ -789,7 +937,7 @@ useEffect(() => {
                             captionLayout="dropdown"
                             fromYear={selectedFundStartDate ? selectedFundStartDate.getFullYear() : 1990}
                             toYear={new Date().getFullYear()}
-                            defaultMonth={ formData.date ? new Date(formData.date) : (selectedFundStartDate || new Date()) }
+                            defaultMonth={formData.date ? new Date(formData.date) : (selectedFundStartDate || new Date())}
                           />
                         </div>
                       )}
@@ -843,7 +991,7 @@ useEffect(() => {
                   </div>
 
                   <div className="flex justify-end space-x-2">
-                    <Button variant="outline" onClick={() => { setIsAddDialogOpen(false); resetForm(); }}>
+                    <Button variant="outline" onClick={() => { setIsAddDialogOpen(false); setAddForFundMode(false); resetForm(); }}>
                       Cancel
                     </Button>
                     <Button onClick={handleAddTransaction} disabled={addDialogLoading}>
@@ -879,7 +1027,12 @@ useEffect(() => {
             </Button>
           </div>
         </div>
-
+        {globalPurgeSuccess && (
+          <div className="mb-3 p-2 rounded bg-green-100 text-green-800 font-medium">All transactions were deleted.</div>
+        )}
+        {globalPurgeError && (
+          <div className="mb-3 p-2 rounded bg-red-100 text-red-800 font-medium">{globalPurgeError}</div>
+        )}
         {/* Holdings Table */}
         <Card>
           <CardContent className="p-0">
@@ -918,18 +1071,19 @@ useEffect(() => {
                         </TableCell>
                       </TableRow>
                     ) : paginatedHoldings.map((holding) => (
-                        <React.Fragment key={holding.fundId}>
-                          <TableRow
-                            className="cursor-pointer hover:bg-muted/50"
-                            onClick={() => toggleFundExpansion(holding.fundId)}
-                          >
-                            <TableCell className="!text-center">
-                              {expandedFunds.has(holding.fundId) ?
-                                <ChevronDown className="h-4 w-4" /> :
-                                <ChevronRightIcon className="h-4 w-4" />
-                              }
-                            </TableCell>
-                            <TableCell className="font-medium !text-left">
+                      <React.Fragment key={holding.fundId}>
+                        <TableRow
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => toggleFundExpansion(holding.fundId)}
+                        >
+                          <TableCell className="!text-center">
+                            {expandedFunds.has(holding.fundId) ?
+                              <ChevronDown className="h-4 w-4" /> :
+                              <ChevronRightIcon className="h-4 w-4" />
+                            }
+                          </TableCell>
+                          <TableCell className="font-medium !text-left">
+                            <div className="flex items-center gap-2">
                               <Link
                                 to={`/fund/${holding.fundId}`}
                                 className="text-primary hover:text-primary/80 transition-colors"
@@ -937,123 +1091,169 @@ useEffect(() => {
                               >
                                 {holding.fundName}
                               </Link>
-                            </TableCell>
-                            <TableCell className="!text-right">{holding.totalQuantity}</TableCell>
-                            <TableCell className="!text-right">{formatCurrency(holding.currentPrice)}</TableCell>
-                            <TableCell className="!text-right font-medium">{formatCurrency(holding.totalCurrentValue)}</TableCell>
-                            <TableCell className="!text-right">{formatCurrency(holding.totalInvestedValue)}</TableCell>
-                            <TableCell className="!text-right">
-                              <div className={cn(
-                                "flex items-center justify-end",
-                                holding.totalGainLoss >= 0 ? "text-green-600" : "text-red-600"
-                              )}>
-                                {holding.totalGainLoss >= 0 ?
-                                  <TrendingUp className="mr-1 h-4 w-4" /> :
-                                  <TrendingDown className="mr-1 h-4 w-4" />
-                                }
-                                <div>
-                                  <div className="font-medium">{formatCurrency(Math.abs(holding.totalGainLoss))}</div>
-                                  <div className="text-xs">({holding.totalGainLossPercent ? holding.totalGainLossPercent.toFixed(2) : 0}%)</div>
-                                </div>
+                              {holding.transactions.length > 0 && (
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 hover:bg-destructive/10"
+                                      onClick={(e) => e.stopPropagation()}
+                                      title="Delete all transactions for this fund"
+                                    >
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete all transactions for this fund?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        <span className="text-destructive font-medium">This will remove all transactions for this fund permanently. There is no recovery option.</span>
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction onClick={(e) => { e.stopPropagation(); handlePurgeFund(holding.fundId); }} disabled={fundPurgeLoadingId === holding.fundId} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                        {fundPurgeLoadingId === holding.fundId ? 'Deleting…' : 'Delete'}
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="!text-right">{holding.totalQuantity}</TableCell>
+                          <TableCell className="!text-right">{formatCurrency(holding.currentPrice)}</TableCell>
+                          <TableCell className="!text-right font-medium">{formatCurrency(holding.totalCurrentValue)}</TableCell>
+                          <TableCell className="!text-right">{formatCurrency(holding.totalInvestedValue)}</TableCell>
+                          <TableCell className="!text-right">
+                            <div className={cn(
+                              "flex items-center justify-end",
+                              holding.totalGainLoss >= 0 ? "text-green-600" : "text-red-600"
+                            )}>
+                              {holding.totalGainLoss >= 0 ?
+                                <TrendingUp className="mr-1 h-4 w-4" /> :
+                                <TrendingDown className="mr-1 h-4 w-4" />
+                              }
+                              <div>
+                                <div className="font-medium">{formatCurrency(Math.abs(holding.totalGainLoss))}</div>
+                                <div className="text-xs">({holding.totalGainLossPercent ? holding.totalGainLossPercent.toFixed(2) : 0}%)</div>
                               </div>
-                            </TableCell>
-                            <TableCell className={cn("!text-right font-medium", holding.xirr >= 0 ? "text-green-600" : "text-red-600")}>{holding.xirr !== undefined ? holding.xirr.toFixed(2) + "%" : "-"}</TableCell>
-                          </TableRow>
-                          {expandedFunds.has(holding.fundId) && (
-                            <TableRow>
-                              <TableCell colSpan={7} className="p-0 bg-muted/30 border-t">
-                                <div className="p-6">
-                                  {/* Success or error message for delete, only for this fund */}
-                                  {editSuccess.visible && editSuccess.fundId === holding.fundId && (
-                                    <div className="mb-2 p-2 rounded bg-green-100 text-green-800 font-medium flex items-center">
-                                      <span>Transaction updated successfully!</span>
-                                    </div>
-                                  )}
-                                  {deleteSuccess.visible && deleteSuccess.fundId === holding.fundId && (
-                                    <div className="mb-2 p-2 rounded bg-green-100 text-green-800 font-medium flex items-center">
-                                      <span>Transaction deleted successfully!</span>
-                                    </div>
-                                  )}
-                                  {deleteError.visible && deleteError.fundId === holding.fundId && (
-                                    <div className="mb-2 p-2 rounded bg-red-100 text-red-800 font-medium flex items-center">
-                                      <span>{deleteError.message}</span>
-                                    </div>
-                                  )}
-                                  <h4 className="font-semibold mb-4 flex items-center gap-2 text-foreground">
+                            </div>
+                          </TableCell>
+                          <TableCell className={cn("!text-right font-medium", holding.xirr >= 0 ? "text-green-600" : "text-red-600")}>{holding.xirr !== undefined ? holding.xirr.toFixed(2) + "%" : "-"}</TableCell>
+                        </TableRow>
+                        {expandedFunds.has(holding.fundId) && (
+                          <TableRow>
+                            <TableCell colSpan={7} className="p-0 bg-muted/30 border-t">
+                              <div className="p-6">
+                                {/* Success or error message for delete, only for this fund */}
+                                {editSuccess.visible && editSuccess.fundId === holding.fundId && (
+                                  <div className="mb-2 p-2 rounded bg-green-100 text-green-800 font-medium flex items-center">
+                                    <span>Transaction updated successfully!</span>
+                                  </div>
+                                )}
+                                {deleteSuccess.visible && deleteSuccess.fundId === holding.fundId && (
+                                  <div className="mb-2 p-2 rounded bg-green-100 text-green-800 font-medium flex items-center">
+                                    <span>Transaction deleted successfully!</span>
+                                  </div>
+                                )}
+                                {deleteError.visible && deleteError.fundId === holding.fundId && (
+                                  <div className="mb-2 p-2 rounded bg-red-100 text-red-800 font-medium flex items-center">
+                                    <span>{deleteError.message}</span>
+                                  </div>
+                                )}
+                                {fundPurgeSuccess.visible && fundPurgeSuccess.fundId === holding.fundId && (
+                                  <div className="mb-2 p-2 rounded bg-green-100 text-green-800 font-medium flex items-center">
+                                    <span>All transactions for this fund were deleted.</span>
+                                  </div>
+                                )}
+                                {fundPurgeError.visible && fundPurgeError.fundId === holding.fundId && (
+                                  <div className="mb-2 p-2 rounded bg-red-100 text-red-800 font-medium flex items-center">
+                                    <span>{fundPurgeError.message}</span>
+                                  </div>
+                                )}
+                                <div className="flex items-center justify-between mb-4">
+                                  <h4 className="font-semibold flex items-center gap-2 text-foreground">
                                     <Calendar className="h-4 w-4 text-primary" />
                                     Transaction History ({holding.transactions.length})
                                   </h4>
-                                  <div className="border rounded-lg overflow-hidden bg-background">
-                                    <Table>
-                                      <TableHeader>
-                                        <TableRow className="bg-muted/50">
-                                          <TableHead className="w-20 font-semibold">Type</TableHead>
-                                          <TableHead className="text-right w-24 font-semibold">Quantity</TableHead>
-                                          <TableHead className="text-right w-32 font-semibold">Price</TableHead>
-                                          <TableHead className="text-right w-32 font-semibold">Value</TableHead>
-                                          <TableHead className="w-28 font-semibold">Date</TableHead>
-                                          <TableHead className="text-center w-24 font-semibold">Actions</TableHead>
-                                        </TableRow>
-                                      </TableHeader>
-                                      <TableBody>
-                                        {holding.transactions.map((transaction) => (
-                                          <TableRow key={transaction.id} className="hover:bg-muted/20">
-                                            <TableCell className="py-3">
-                                              <Badge
-                                                variant={transaction.type === 'BUY' ? 'default' : 'destructive'}
-                                                className="text-xs font-medium"
-                                              >
-                                                {transaction.type}
-                                              </Badge>
-                                            </TableCell>
-                                            <TableCell className="text-right py-3 font-medium">{transaction.quantity}</TableCell>
-                                            <TableCell className="text-right py-3">{formatCurrency(transaction.price)}</TableCell>
-                                            <TableCell className="text-right py-3 font-medium">{formatCurrency(transaction.value)}</TableCell>
-                                            <TableCell className="py-3 text-sm text-muted-foreground">{formatDate(transaction.date)}</TableCell>
-                                            <TableCell className="py-3">
-                                              <div className="flex items-center justify-center space-x-1">
-                                                <Button
-                                                  variant="ghost"
-                                                  size="icon"
-                                                  className="h-8 w-8 hover:bg-primary/10"
-                                                  onClick={() => openEditDialog(transaction, holding.fundName, holding.fundId)}
-                                                >
-                                                  <Edit className="h-3 w-3" />
-                                                </Button>
-                                                <AlertDialog>
-                                                  <AlertDialogTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-destructive/10">
-                                                      <Trash2 className="h-3 w-3" />
-                                                    </Button>
-                                                  </AlertDialogTrigger>
-                                                  <AlertDialogContent>
-                                                    <AlertDialogHeader>
-                                                      <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
-                                                      <AlertDialogDescription>
-                                                        Are you sure you want to delete this {transaction.type.toLowerCase()} transaction? This action cannot be undone.
-                                                      </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <AlertDialogFooter>
-                                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                      <AlertDialogAction onClick={() => handleDeleteTransaction(transaction.id, holding.fundId)}>
-                                                        Delete
-                                                      </AlertDialogAction>
-                                                    </AlertDialogFooter>
-                                                  </AlertDialogContent>
-                                                </AlertDialog>
-                                              </div>
-                                            </TableCell>
-                                          </TableRow>
-                                        ))}
-                                      </TableBody>
-                                    </Table>
-                                  </div>
+                                  <Button size="sm" onClick={(e) => { e.stopPropagation(); openQuickAddDialog({ fundId: holding.fundId, fundName: holding.fundName }); }}>
+                                    <Plus className="mr-2 h-4 w-4 transaction-add-button" />
+                                    Add
+                                  </Button>
                                 </div>
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </React.Fragment>
-                      ))}
+                                <div className="border rounded-lg overflow-hidden bg-background">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow className="bg-muted/50">
+                                        <TableHead className="w-20 font-semibold">Type</TableHead>
+                                        <TableHead className="text-right w-24 font-semibold">Quantity</TableHead>
+                                        <TableHead className="text-right w-32 font-semibold">Price</TableHead>
+                                        <TableHead className="text-right w-32 font-semibold">Value</TableHead>
+                                        <TableHead className="w-28 font-semibold">Date</TableHead>
+                                        <TableHead className="text-center w-24 font-semibold">Actions</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {holding.transactions.map((transaction) => (
+                                        <TableRow key={transaction.id} className="hover:bg-muted/20">
+                                          <TableCell className="py-3">
+                                            <Badge
+                                              variant={transaction.type === 'BUY' ? 'default' : 'destructive'}
+                                              className="text-xs font-medium"
+                                            >
+                                              {transaction.type}
+                                            </Badge>
+                                          </TableCell>
+                                          <TableCell className="text-right py-3 font-medium">{transaction.quantity}</TableCell>
+                                          <TableCell className="text-right py-3">{formatCurrency(transaction.price)}</TableCell>
+                                          <TableCell className="text-right py-3 font-medium">{formatCurrency(transaction.value)}</TableCell>
+                                          <TableCell className="py-3 text-sm text-muted-foreground">{formatDate(transaction.date)}</TableCell>
+                                          <TableCell className="py-3">
+                                            <div className="flex items-center justify-center space-x-1">
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 hover:bg-primary/10"
+                                                onClick={() => openEditDialog(transaction, holding.fundName, holding.fundId)}
+                                              >
+                                                <Edit className="h-3 w-3" />
+                                              </Button>
+                                              <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-destructive/10">
+                                                    <Trash2 className="h-3 w-3" />
+                                                  </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                  <AlertDialogHeader>
+                                                    <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                      Are you sure you want to delete this {transaction.type.toLowerCase()} transaction? This action cannot be undone.
+                                                    </AlertDialogDescription>
+                                                  </AlertDialogHeader>
+                                                  <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDeleteTransaction(transaction.id, holding.fundId)}>
+                                                      Delete
+                                                    </AlertDialogAction>
+                                                  </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                              </AlertDialog>
+                                            </div>
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
@@ -1113,7 +1313,7 @@ useEffect(() => {
                         captionLayout="dropdown"
                         fromYear={selectedFundStartDate ? selectedFundStartDate.getFullYear() : 1990}
                         toYear={new Date().getFullYear()}
-                        defaultMonth={ formData.date ? new Date(formData.date) : (selectedFundStartDate || new Date()) }
+                        defaultMonth={formData.date ? new Date(formData.date) : (selectedFundStartDate || new Date())}
                       />
                     </div>
                   )}

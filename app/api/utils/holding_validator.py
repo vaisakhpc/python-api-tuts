@@ -86,15 +86,77 @@ def validate_nav_and_sales(data, fund, user, instance=None):
     # Negative sales validation
     if txn_type == "SELL":
         qs = MFHolding.objects.filter(user=user, fund=fund)
+
+        # Date-aware availability check as of tx_date:
+        buy_upto = (
+            qs.filter(type="BUY", transacted_at__lte=tx_date).aggregate(total=models.Sum("units"))["total"]
+            or Decimal("0")
+        )
+        sell_upto_qs = qs.filter(type="SELL", transacted_at__lte=tx_date)
+        if instance is not None:
+            try:
+                sell_upto_qs = sell_upto_qs.exclude(pk=getattr(instance, "pk", None))
+            except Exception:
+                pass
+        sell_upto = sell_upto_qs.aggregate(total=models.Sum("units"))["total"] or Decimal("0")
+        available_at_date = buy_upto - sell_upto
+
+        if units > available_at_date:
+            avail_fmt = available_at_date.quantize(Decimal("0.0001")) if available_at_date > 0 else Decimal("0")
+            if instance is not None:
+                # Edit-specific message
+                if available_at_date <= 0:
+                    raise serializers.ValidationError(
+                        f"On {tx_date}, you had 0 units available to sell in {fund.mf_name}. "
+                        f"Adjust other sales or add more units before selling."
+                    )
+                raise serializers.ValidationError(
+                    f"For this edit on {tx_date}, you can sell at most {avail_fmt} units based on your holdings "
+                    f"(buys before this date minus prior sales) in {fund.mf_name}."
+                )
+            # Create/new SELL message
+            if available_at_date <= 0:
+                raise serializers.ValidationError(
+                    f"On {tx_date}, you had 0 units available to sell in {fund.mf_name}. "
+                    f"You cannot sell {round(units, 2)} units."
+                )
+            raise serializers.ValidationError(
+                f"On {tx_date}, only {avail_fmt} units were available to sell in {fund.mf_name}. "
+                f"You cannot sell {round(units, 2)} units."
+            )
+            
         total_buy = qs.filter(type="BUY").aggregate(total=models.Sum("units"))[
             "total"
         ] or Decimal("0")
-        total_sell = qs.filter(type="SELL").aggregate(total=models.Sum("units"))[
-            "total"
-        ] or Decimal("0")
+
+        # When editing an existing SELL transaction, exclude it from the total_sell sum
+        sell_qs = qs.filter(type="SELL")
+        if instance is not None:
+            try:
+                # Exclude the current instance if it's part of the SELL set
+                sell_qs = sell_qs.exclude(pk=getattr(instance, "pk", None))
+            except Exception:
+                pass
+
+        total_sell = sell_qs.aggregate(total=models.Sum("units"))["total"] or Decimal(
+            "0"
+        )
         net_available = total_buy - total_sell
 
         if units > net_available:
+            # Provide clearer guidance when editing an existing SELL
+            if instance is not None:
+                max_units = net_available.quantize(Decimal("0.0001"))
+                if net_available <= 0:
+                    raise serializers.ValidationError(
+                        f"For this edit, no units are available to sell after your other sales. "
+                        f"Reduce other sales or add more units before selling from {fund.mf_name}."
+                    )
+                raise serializers.ValidationError(
+                    f"For this edit, you can sell at most {round(max_units, 2)} units based on your current holdings "
+                    f"(buys minus other sales) in {fund.mf_name}."
+                )
+            # Default message for create/new SELL
             raise serializers.ValidationError(
-                f"Cannot sell {units} units: only {net_available} units currently held in {fund.mf_name}."
+                f"Cannot sell {round(units, 2)} units: only {round(net_available, 2)} units currently held in {fund.mf_name}."
             )

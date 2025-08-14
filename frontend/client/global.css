@@ -121,3 +121,7 @@
 .close-overlay-button {
   color: #03140aff; /* matches close popup button color */
 }
+
+.transaction-add-button {
+  margin: 0;
+}

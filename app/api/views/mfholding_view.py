@@ -1,4 +1,5 @@
 from rest_framework import viewsets, status, serializers
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from api.models import MFHolding, FundHistoricalNAV
 from api.serializers.mutual_fund_detail_serializer import MutualFundDetailSerializer
@@ -239,3 +240,54 @@ class MFHoldingViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.
 
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=["delete"], url_path="purge")
+    def purge(self, request, *args, **kwargs):
+        """
+        Delete all transactions for the authenticated user.
+        Optional query param `fund` can be provided to delete only that fund's transactions.
+
+        Examples:
+        - DELETE /api/mfholdings/purge/                 -> deletes all user's transactions
+        - DELETE /api/mfholdings/purge/?fund=123        -> deletes all user's transactions for fund 123
+        """
+        fund_id_param = request.query_params.get("fund")
+        qs = MFHolding.objects.filter(user=request.user)
+
+        scope = "all"
+        fund_id_val = None
+        if fund_id_param is not None and str(fund_id_param).strip() != "":
+            try:
+                fund_id_val = int(fund_id_param)
+                qs = qs.filter(fund_id=fund_id_val)
+                scope = "fund"
+            except ValueError:
+                return Response(
+                    {"statusCode": 400, "errorMessage": "Invalid fund id"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        # Perform bulk delete; returns (num_deleted, details)
+        deleted_count, _ = qs.delete()
+
+        # If delete requested with a fund id and nothing was deleted, treat as bad request
+        if scope == "fund" and deleted_count == 0:
+            return Response(
+                {
+                    "statusCode": 400,
+                    "errorMessage": "No such fund exists",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "statusCode": 200,
+                "data": {
+                    "deleted": deleted_count,
+                    "scope": scope,
+                    "fund_id": fund_id_val,
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
