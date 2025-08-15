@@ -127,6 +127,8 @@ class UserViewSet(viewsets.ViewSet):
             status=status.HTTP_204_NO_CONTENT,
         )
 
+    # Removed import-mapping action; use ImportMappingView (expects user JWT) instead.
+
     @action(detail=False, methods=["put"], url_path="update_by_email")
     def update_by_email(self, request):
         # PUT /users/update_by_email/?email=...

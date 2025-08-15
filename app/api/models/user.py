@@ -12,6 +12,8 @@ class User(models.Model):
     is_active = models.BooleanField(default=False)
     reset_code = models.CharField(max_length=64, blank=True, null=True)
     reset_expiry = models.DateTimeField(blank=True, null=True)
+    # Stores optional saved CSV column mapping for self-imports
+    config_import_mapping = models.JSONField(blank=True, null=True, default=dict)
 
     def set_password(self, raw_password):
         self.password = make_password(raw_password)

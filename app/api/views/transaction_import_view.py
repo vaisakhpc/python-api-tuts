@@ -136,6 +136,35 @@ class TransactionImportView(APIView):
                     {"statusCode": 400, "errorMessage": f"Invalid/missing column_map JSON: {e}"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+            # Basic validation on mapping keys and headers
+            required_keys = {"date", "units", "type", "nav", "fund_name"}
+            if not isinstance(column_map, dict) or not required_keys.issubset(set(column_map.keys())):
+                return Response(
+                    {
+                        "statusCode": 400,
+                        "errorMessage": "column_map must include keys: date, units, type, nav, fund_name",
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            # Ensure all mapped headers exist in CSV headers
+            csv_headers = set(rows[0].keys()) if rows else set()
+            mapped_headers = set(column_map.get(k, "") for k in required_keys)
+            missing_headers = [h for h in mapped_headers if h not in csv_headers]
+            if missing_headers:
+                return Response(
+                    {
+                        "statusCode": 400,
+                        "errorMessage": f"Mapped columns not found in CSV: {missing_headers}",
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            # Optionally persist mapping for the user
+            save_mapping_raw = request.data.get("save_mapping")
+            save_mapping = False
+            if isinstance(save_mapping_raw, str):
+                save_mapping = save_mapping_raw.lower() in ("1", "true", "yes", "on")
+            elif isinstance(save_mapping_raw, bool):
+                save_mapping = save_mapping_raw
             # Make sure to use your CSV cleaning as you did above to get rows
             # Assume 'rows' is the list of cleaned dicts (headers and values stripped)
             errors, new_holdings = process_self_transactions(
@@ -146,6 +175,16 @@ class TransactionImportView(APIView):
                 return Response({"statusCode": 400, "errorMessage": msg}, status=400)
             with transaction.atomic():
                 MFHolding.objects.bulk_create(new_holdings)
+                if save_mapping:
+                    try:
+                        # Persist mapping to user for future imports
+                        user = request.user
+                        # Only store the mapping dict: {date, units, type, nav, fund_name}
+                        user.config_import_mapping = column_map
+                        user.save(update_fields=["config_import_mapping"])
+                    except Exception:
+                        # Non-fatal persistence issue; continue
+                        pass
             return Response(
                 {"statusCode": 200, "data": {"message": f"Imported {len(new_holdings)} transactions.", "statusCode": 200}}
             )

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -41,6 +42,14 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 
 function Holdings() {
+  // Sync selected account with URL (?account=<slug>)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const slugify = (s: string) => s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+  // If an account param is present, hold data loads until it’s matched
+  const [dataReady, setDataReady] = useState<boolean>(() => !Boolean((new URLSearchParams(window.location.search)).get("account")));
   const [holdings, setHoldings] = useState<any[]>([]);
   const [addSuccess, setAddSuccess] = useState(false);
   const [addError, setAddError] = useState("");
@@ -63,8 +72,24 @@ function Holdings() {
   const [importAccountId, setImportAccountId] = useState<number | null>(null);
   const [importAccountLocked, setImportAccountLocked] = useState<boolean>(false);
   const [importError, setImportError] = useState<string>("");
+  // Self-import mapping state
+  const requiredSelfKeys = ['date', 'fund_name', 'type', 'units', 'nav'] as const;
+  type RequiredSelfKey = typeof requiredSelfKeys[number];
+  const [selfHeaders, setSelfHeaders] = useState<string[]>([]);
+  const [selfMapping, setSelfMapping] = useState<Record<RequiredSelfKey, string | ''>>({
+    date: '', fund_name: '', type: '', units: '', nav: ''
+  });
+  const [saveSelfMapping, setSaveSelfMapping] = useState<boolean>(false);
+  const [selfMappingError, setSelfMappingError] = useState<string>("");
+  // Saved mapping preview/support
+  const [savedSelfMapping, setSavedSelfMapping] = useState<Partial<Record<RequiredSelfKey, string>>>({});
+  const [selfMappingLocked, setSelfMappingLocked] = useState<boolean>(false);
+  const [defineNewMapping, setDefineNewMapping] = useState<boolean>(false); // single toggle
   const fileInputRef = useRef<HTMLInputElement>(null);
   const calendarRef = useRef<HTMLDivElement>(null);
+  // Debounce state for fund search
+  const fundSearchDebounceRef = useRef<number | undefined>(undefined);
+  const lastFundQueryRef = useRef<string>("");
 
   // Form state for add/edit transactions
   const [formData, setFormData] = useState({
@@ -115,6 +140,55 @@ function Holdings() {
     return source.find(a => a.is_primary)?.id ?? (source[0]?.id ?? null);
   };
 
+  // On accounts load or URL change, apply ?account to selection and then mark data ready
+  useEffect(() => {
+    if (!accounts.length) return;
+    const param = searchParams.get("account");
+    if (!param || param === "all") {
+      // No param: ensure we allow data loads
+      if (!dataReady) setDataReady(true);
+      return;
+    }
+    if (param === "all") {
+      setSelectedAccountId("all");
+      setDataReady(true);
+      return;
+    }
+    const match = accounts.find(a => slugify(a.name) === param);
+    if (match) {
+      setSelectedAccountId(match.id);
+    } else {
+      // Fallback if slug doesn't match any account
+      setSelectedAccountId("all");
+    }
+    setDataReady(true);
+  }, [accounts, searchParams]);
+
+  // When selection changes, reflect it in the URL (replace history entry)
+  useEffect(() => {
+    // Wait until accounts are loaded to avoid wiping the query param prematurely
+    if (!Array.isArray(accounts) || accounts.length === 0) return;
+    const params = new URLSearchParams(searchParams);
+    const currentParam = params.get("account");
+    // On initial load with a param, let the reader effect resolve first
+    if (currentParam && selectedAccountId === "all" && !dataReady) return;
+    let value = "all";
+    if (selectedAccountId !== "all") {
+      const acc = accounts.find(a => a.id === selectedAccountId);
+      value = acc ? slugify(acc.name) : "all";
+    }
+    const current = params.get("account");
+    if (value === "all") {
+      if (current !== "all") {
+        params.set("account", "all");
+        setSearchParams(params, { replace: true });
+      }
+    } else if (current !== value) {
+      params.set("account", value);
+      setSearchParams(params, { replace: true });
+    }
+  }, [selectedAccountId, accounts, searchParams, dataReady]);
+
   const fetchAccounts = async () => {
     try {
       const encodedToken = localStorage.getItem("access_token");
@@ -129,7 +203,7 @@ function Holdings() {
         const primaryId = getPrimaryAccountId(list);
         setAddDialogAccountId(primaryId);
         // Keep selectedAccountId if it still exists; else fall back to 'all'
-  if (selectedAccountId !== 'all' && !list.some(a => a.id === selectedAccountId)) {
+        if (selectedAccountId !== 'all' && !list.some(a => a.id === selectedAccountId)) {
           setSelectedAccountId('all');
         }
       }
@@ -284,9 +358,7 @@ function Holdings() {
     setIssummaryLoading(false);
   };
 
-  useEffect(() => {
-    fetchPortfolioSummary();
-  }, []);
+  // Initial fetch will be handled by the guarded refetch effect below
 
   // Search state for holdings
   const [searchQuery, setSearchQuery] = useState("");
@@ -331,20 +403,19 @@ function Holdings() {
     setIsLoading(false);
   };
 
-  useEffect(() => {
-    fetchHoldings();
-  }, []); // Only run on mount
+  // Initial fetch will be handled by the guarded refetch effect below
 
   // Load accounts on mount
   useEffect(() => {
     fetchAccounts();
   }, []);
 
-  // Refetch when account filter changes
+  // Refetch when account filter changes, but only after param (if any) is processed
   useEffect(() => {
+    if (!dataReady) return;
     fetchHoldings();
     fetchPortfolioSummary();
-  }, [selectedAccountId]);
+  }, [selectedAccountId, dataReady]);
 
   // Defensive mapping for holdings: handle null, empty, or paginated response
   const holdingsArray = Array.isArray(holdings)
@@ -392,13 +463,13 @@ function Holdings() {
       quantity: "",
       price: "",
       date: ""
-    });
+    }); 
     setErrors({});
     setFundSuggestions([]);
     setSelectedDate(null);
     setSelectedFundStartDate(null);
     setSelectedFundIsin("");
-  setAddForFundMode(false);
+    setAddForFundMode(false);
   };
 
   const validateForm = () => {
@@ -421,13 +492,27 @@ function Holdings() {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Fund name search using API (like HistoricalCalculator)
-  const handleFundSearch = async (value: string) => {
+  // Fund name search using API with debouncing to reduce calls
+  const handleFundSearch = (value: string) => {
     setFormData(prev => ({ ...prev, fundName: value, fundId: 0 }));
-    if (value.length > 2) {
+    // Clear any in-flight debounce
+    if (fundSearchDebounceRef.current) {
+      window.clearTimeout(fundSearchDebounceRef.current);
+    }
+    // If too short, clear suggestions and stop
+    if (!value || value.length <= 2) {
+      lastFundQueryRef.current = value;
+      setFundSuggestions([]);
+      return;
+    }
+    lastFundQueryRef.current = value;
+    fundSearchDebounceRef.current = window.setTimeout(async () => {
+      const queryAtSchedule = value;
       try {
-        const response = await fetch(`${API_CONFIG.VITE_API_URL}/api/mutualfunds/search/?q=${value}`);
+        const response = await fetch(`${API_CONFIG.VITE_API_URL}/api/mutualfunds/search/?q=${encodeURIComponent(queryAtSchedule)}`);
         const data = await response.json();
+        // Ignore if input has changed since this request was scheduled
+        if (lastFundQueryRef.current !== queryAtSchedule) return;
         if (data.statusCode === 200) {
           const results = data.data.results;
           const flattenedResults = Object.entries(results).flatMap(([type, funds]) =>
@@ -445,11 +530,12 @@ function Holdings() {
           setFundSuggestions([]);
         }
       } catch (error) {
-        setFundSuggestions([]);
+        // Ignore network errors for debounce; just clear suggestions if still relevant
+        if (lastFundQueryRef.current === queryAtSchedule) {
+          setFundSuggestions([]);
+        }
       }
-    } else {
-      setFundSuggestions([]);
-    }
+    }, 300); // debounce delay in ms
   };
 
   const handleFundSelect = (fund: { id: number, name: string, isin: string, start_date?: string }) => {
@@ -458,6 +544,15 @@ function Holdings() {
     setSelectedFundIsin(fund.isin);
     setFundSuggestions([]);
   };
+
+  // Cleanup pending debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (fundSearchDebounceRef.current) {
+        window.clearTimeout(fundSearchDebounceRef.current);
+      }
+    };
+  }, []);
 
   const handleAddTransaction = async () => {
     setAddError("");
@@ -472,7 +567,7 @@ function Holdings() {
         units: formData.quantity,
         transacted_at: formData.date,
         identifier: addForFundMode ? "id" : "scheme",
-  ...(addDialogAccountId ? { account: addDialogAccountId } : {}),
+        ...(addDialogAccountId ? { account: addDialogAccountId } : {}),
       };
       const encodedToken = localStorage.getItem("access_token");
       const token = encodedToken ? decodeToken(encodedToken) : null;
@@ -727,8 +822,8 @@ function Holdings() {
     try {
       const encodedToken = localStorage.getItem("access_token");
       const token = encodedToken ? decodeToken(encodedToken) : null;
-  const qs = selectedAccountId !== "all" ? `?account=${selectedAccountId}` : "";
-  const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/mfholdings/purge/${qs}`, {
+      const qs = selectedAccountId !== "all" ? `?account=${selectedAccountId}` : "";
+      const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/mfholdings/purge/${qs}`, {
         method: "DELETE",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -838,12 +933,34 @@ function Holdings() {
     return { ok: true };
   };
 
-  const handleCsvUpload = async () => {
-    if (!csvFile) return;
-    if (importSource === 'self') {
-      setImportError('Custom CSV import is coming soon. Please choose Kuvera for now.');
+  const parseSelfHeaders = async (file: File) => {
+    const text = await readFileHead(file).catch(() => '') as string;
+    if (!text) {
+      setImportError('Could not read the CSV file.');
       return;
     }
+    const lines = text.split(/\r?\n/).map(l => l.trim());
+    const headerLine = lines.find(l => l.length > 0) || '';
+    const headers = splitCsvLine(headerLine);
+    setSelfHeaders(headers);
+    // If user opted to use a saved mapping, keep it; otherwise reset
+    if (!selfMappingLocked) {
+      setSelfMapping({ date: '', fund_name: '', type: '', units: '', nav: '' });
+      setSelfMappingError('');
+    }
+  };
+
+  const isSelfMappingValid = (): boolean => {
+    // All keys selected
+    const values = requiredSelfKeys.map(k => selfMapping[k]);
+    if (values.some(v => !v)) return false;
+    // Unique headers
+    const setVals = new Set(values);
+    return setVals.size === values.length;
+  };
+
+  const handleCsvUpload = async () => {
+    if (!csvFile) return;
     setImportError("");
 
     // Frontend validation for Kuvera CSV before upload
@@ -854,6 +971,12 @@ function Holdings() {
         setImportError(msg);
         return;
       }
+    } else if (importSource === 'self') {
+      // Ensure mapping is complete/unique
+      if (!isSelfMappingValid()) {
+        setImportError('Please map all required fields with unique columns.');
+        return;
+      }
     }
 
     setUploadStatus('uploading');
@@ -861,6 +984,17 @@ function Holdings() {
     try {
       const form = new FormData();
       form.append('transactions', csvFile);
+      if (importSource === 'self') {
+        const columnMap = {
+          date: selfMapping.date,
+          units: selfMapping.units,
+          type: selfMapping.type,
+          nav: selfMapping.nav,
+          fund_name: selfMapping.fund_name,
+        };
+        form.append('column_map', JSON.stringify(columnMap));
+        form.append('save_mapping', String(saveSelfMapping));
+      }
 
       const encodedToken = localStorage.getItem("access_token");
       const token = encodedToken ? decodeToken(encodedToken) : null;
@@ -875,7 +1009,7 @@ function Holdings() {
         body: form
       });
 
-  const result = await res.json().catch(() => ({} as any));
+      const result = await res.json().catch(() => ({} as any));
       if (res.ok && result?.statusCode === 200) {
         setUploadStatus('success');
         // Refresh data immediately
@@ -887,16 +1021,127 @@ function Holdings() {
           setCsvFile(null);
           setUploadStatus('idle');
           setImportError("");
+          setSelfHeaders([]);
+          setSelfMapping({ date: '', fund_name: '', type: '', units: '', nav: '' });
+          setSaveSelfMapping(false);
         }, 1000);
       } else {
         const msg = result?.errorMessage || 'Failed to import transactions';
         setImportError(msg);
         setUploadStatus('idle');
+        // Clear selected file so preview resets
+        setCsvFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
     } catch (e) {
       setImportError('Network error importing transactions');
       setUploadStatus('idle');
+      // Clear selected file so preview resets
+      setCsvFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  // Import dialog open/close handler (refactored from inline)
+  const handleImportDialogOpenChange = (open: boolean) => {
+    setIsImportDialogOpen(open);
+    if (open) {
+      setImportError("");
+      setUploadStatus('idle');
+      setCsvFile(null);
+      setImportSource('kuvera');
+      // Reset self-import mapping state on open
+      setSelfHeaders([]);
+      setSelfMapping({ date: '', fund_name: '', type: '', units: '', nav: '' });
+      setSelfMappingError('');
+      setSaveSelfMapping(false);
+      setSavedSelfMapping({});
+      setSelfMappingLocked(false);
+      setDefineNewMapping(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (selectedAccountId !== 'all') {
+        setImportAccountId(Number(selectedAccountId));
+        setImportAccountLocked(true);
+      } else {
+        setImportAccountLocked(false);
+        setImportAccountId(getPrimaryAccountId());
+      }
+    } else {
+      // Also clear on close to avoid stale state if reopened
+      setSelfHeaders([]);
+      setSelfMapping({ date: '', fund_name: '', type: '', units: '', nav: '' });
+      setSelfMappingError('');
+      setSaveSelfMapping(false);
+      setSavedSelfMapping({});
+      setSelfMappingLocked(false);
+      setDefineNewMapping(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Source change handler (refactored from inline)
+  const handleImportSourceChange = (val: 'kuvera' | 'self') => {
+    setImportSource(val);
+    // Fresh start each time source is changed
+    setImportError('');
+    setCsvFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setSelfHeaders([]);
+    setSelfMapping({ date: '', fund_name: '', type: '', units: '', nav: '' });
+    setSelfMappingError('');
+    setSaveSelfMapping(false);
+    setSelfMappingLocked(false);
+    setSavedSelfMapping({});
+    setDefineNewMapping(false);
+    if (val === 'self') {
+      // Load saved mapping for preview/use
+      (async () => {
+        try {
+          const encodedToken = localStorage.getItem("access_token");
+          const token = encodedToken ? decodeToken(encodedToken) : null;
+          const res = await fetch(`${API_CONFIG.VITE_API_URL}/api/users/me/import-mapping/`, {
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          });
+          const data = await res.json().catch(() => ({} as any));
+          const mapping = data?.data?.mapping || {};
+          const normalized: Record<RequiredSelfKey, string | ''> = {
+            date: String(mapping.date || ''),
+            fund_name: String(mapping.fund_name || ''),
+            type: String(mapping.type || ''),
+            units: String(mapping.units || ''),
+            nav: String(mapping.nav || ''),
+          };
+          if (Object.values(normalized).some(v => v)) {
+            setSavedSelfMapping(normalized);
+            // Auto-apply only when not defining a new mapping
+            setSelfMapping(normalized);
+            setSelfMappingLocked(true);
+          }
+        } catch (_) {
+          // ignore
+        }
+      })();
+    }
+  };
+
+  const handleDefineNewSelfMapping = () => {
+    setDefineNewMapping((prev) => {
+      const next = !prev;
+      if (next) {
+        // Turning ON define-new: unlock editor and clear mapping, keep headers if already loaded
+        setSelfMappingLocked(false);
+        setSelfMapping({ date: '', fund_name: '', type: '', units: '', nav: '' });
+        setSelfMappingError('');
+      } else {
+        // Turning OFF: if saved mapping exists, re-apply and lock it
+        if (Object.values(savedSelfMapping).some(v => !!v)) {
+          setSelfMapping(savedSelfMapping as any);
+          setSelfMappingLocked(true);
+          setSelfMappingError('');
+        }
+      }
+      return next;
+    });
   };
 
   // Validate immediately when user picks a file
@@ -915,6 +1160,8 @@ function Holdings() {
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
+    } else if (importSource === 'self') {
+      await parseSelfHeaders(file);
     }
   };
 
@@ -1068,24 +1315,24 @@ function Holdings() {
                     </Select>
                   </div>
                   <div className="text-sm whitespace-nowrap">
-                {(() => {
-                  const fundCount = paginatedHoldings.length;
-                  let buyCount = 0, sellCount = 0;
-                  paginatedHoldings.forEach(h => {
-                    h.transactions.forEach(t => {
-                      if (t.type === "BUY") buyCount++;
-                      if (t.type === "SELL") sellCount++;
-                    });
-                  });
-                  return (
-                    <span>
-                      <span className="font-semibold text-primary">{fundCount} Funds</span>
-                      <span className="ml-2">
-                        (<span className="text-green-600 font-semibold">{buyCount} BUYs</span>, <span className="text-red-600 font-semibold">{sellCount} SELLs</span>)
-                      </span>
-                    </span>
-                  );
-                })()}
+                    {(() => {
+                      const fundCount = paginatedHoldings.length;
+                      let buyCount = 0, sellCount = 0;
+                      paginatedHoldings.forEach(h => {
+                        h.transactions.forEach(t => {
+                          if (t.type === "BUY") buyCount++;
+                          if (t.type === "SELL") sellCount++;
+                        });
+                      });
+                      return (
+                        <span>
+                          <span className="font-semibold text-primary">{fundCount} Funds</span>
+                          <span className="ml-2">
+                            (<span className="text-green-600 font-semibold">{buyCount} BUYs</span>, <span className="text-red-600 font-semibold">{sellCount} SELLs</span>)
+                          </span>
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -1244,14 +1491,14 @@ function Holdings() {
                 </DialogHeader>
                 <div className="space-y-4">
                   {/* Account selection */}
-          <div className="space-y-2">
+                  <div className="space-y-2">
                     <Label htmlFor="addAccount">Account</Label>
                     <Select
                       value={addDialogAccountId != null ? String(addDialogAccountId) : undefined}
                       onValueChange={(val) => setAddDialogAccountId(Number(val))}
                       disabled={addDialogAccountLocked || accounts.length === 0}
                     >
-            <SelectTrigger id="addAccount" className="h-10 border-primary/60 bg-primary/5 hover:bg-primary/10 focus:ring-2 focus:ring-primary/40 focus:border-primary font-medium shadow-sm">
+                      <SelectTrigger id="addAccount" className="h-10 border-primary/60 bg-primary/5 hover:bg-primary/10 focus:ring-2 focus:ring-primary/40 focus:border-primary font-medium shadow-sm">
                         <SelectValue placeholder={accounts.length ? 'Select account' : 'No accounts'} />
                       </SelectTrigger>
                       <SelectContent>
@@ -1409,22 +1656,7 @@ function Holdings() {
             </Dialog>
             <Dialog
               open={isImportDialogOpen}
-              onOpenChange={(open) => {
-                setIsImportDialogOpen(open);
-                if (open) {
-                  setImportError("");
-                  setUploadStatus('idle');
-                  setCsvFile(null);
-                  setImportSource('kuvera');
-                  if (selectedAccountId !== 'all') {
-                    setImportAccountId(Number(selectedAccountId));
-                    setImportAccountLocked(true);
-                  } else {
-                    setImportAccountLocked(false);
-                    setImportAccountId(getPrimaryAccountId());
-                  }
-                }
-              }}
+              onOpenChange={handleImportDialogOpenChange}
             >
               <DialogTrigger asChild>
                 <Button variant="outline">
@@ -1466,7 +1698,10 @@ function Holdings() {
                       {/* Source selection */}
                       <div className="space-y-2">
                         <Label htmlFor="importSource">Source</Label>
-                        <Select value={importSource} onValueChange={(val: 'kuvera' | 'self') => setImportSource(val)}>
+                        <Select
+                          value={importSource}
+                          onValueChange={handleImportSourceChange}
+                        >
                           <SelectTrigger id="importSource" className="h-10">
                             <SelectValue placeholder="Select source" />
                           </SelectTrigger>
@@ -1478,9 +1713,9 @@ function Holdings() {
                       </div>
 
                       {importSource === 'kuvera' && (
-                      <div className="space-y-2">
-                        <Label>CSV File Format</Label>
-                        <div className="p-3 bg-muted rounded-md text-sm">
+                        <div className="space-y-2">
+                          <Label>CSV File Format</Label>
+                          <div className="p-3 bg-muted rounded-md text-sm">
                             <p className="font-medium mb-2">Required columns (Kuvera export):</p>
                             <code className="text-xs break-words">Date, Name of the Fund, Order (Type: Buy or Sell), Units, NAV</code>
                             <p className="mt-2 text-xs text-muted-foreground">Ensure your CSV matches the Kuvera transaction export format.</p>
@@ -1499,13 +1734,86 @@ function Holdings() {
                               </div>
                               <p className="text-muted-foreground">Extra columns are fine; we use the required fields only.</p>
                             </div>
+                          </div>
                         </div>
-                      </div>
                       )}
 
                       {importSource === 'self' && (
-                        <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
-                          Custom CSV mapping will be supported soon.
+                        <div className="space-y-3">
+                          {Object.values(savedSelfMapping).some(v => !!v) && (
+                            <div className="p-3 rounded-md border bg-background">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="font-medium">Saved mapping found</div>
+                                  <div className="text-xs text-muted-foreground">It will be applied by default. Toggle to define a new mapping.</div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <Label htmlFor="defineNewMap" className="text-xs">Define new mapping</Label>
+                                  <Switch id="defineNewMap" checked={defineNewMapping} onCheckedChange={handleDefineNewSelfMapping} />
+                                </div>
+                              </div>
+                              <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                                <div>Date → <code className="px-1 py-0.5 bg-muted rounded">{savedSelfMapping.date || '-'}</code></div>
+                                <div>Fund name → <code className="px-1 py-0.5 bg-muted rounded">{savedSelfMapping.fund_name || '-'}</code></div>
+                                <div>Type → <code className="px-1 py-0.5 bg-muted rounded">{savedSelfMapping.type || '-'}</code></div>
+                                <div>Units → <code className="px-1 py-0.5 bg-muted rounded">{savedSelfMapping.units || '-'}</code></div>
+                                <div>NAV → <code className="px-1 py-0.5 bg-muted rounded">{savedSelfMapping.nav || '-'}</code></div>
+                              </div>
+                            </div>
+                          )}
+
+                          {(defineNewMapping || !selfMappingLocked) && (
+                            <>
+                              <div className="p-3 bg-muted rounded-md text-sm">
+                                <p className="font-medium mb-2">Map your CSV columns to required fields</p>
+                                <p className="text-xs text-muted-foreground">Select a CSV to load headers, then map each required field. Each header can be used only once.</p>
+                              </div>
+                              {selfHeaders.length === 0 ? (
+                                <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">Choose a CSV file below to configure mapping.</div>
+                              ) : (
+                                <div className="space-y-3">
+                                  {requiredSelfKeys.map((key) => (
+                                    <div key={key} className="flex items-center gap-3">
+                                      <div className="w-40 shrink-0"><Label className="capitalize">{key.replace('_', ' ')}</Label></div>
+                                      <div className="flex-1">
+                                        <Select
+                                          value={selfMapping[key] || undefined}
+                                          onValueChange={(val) => {
+                                            // Prevent duplicate header selection
+                                            const alreadyUsed = requiredSelfKeys.some(k => k !== key && selfMapping[k] === val);
+                                            if (alreadyUsed) {
+                                              setSelfMappingError('Each column can be mapped only once.');
+                                              return;
+                                            }
+                                            setSelfMappingError('');
+                                            setSelfMapping(prev => ({ ...prev, [key]: val }));
+                                          }}
+                                        >
+                                          <SelectTrigger className="h-9">
+                                            <SelectValue placeholder="Select column" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {selfHeaders.map(h => (
+                                              <SelectItem key={`${key}-${h}`} value={h} disabled={requiredSelfKeys.some(k => k !== key && selfMapping[k] === h)}>
+                                                {h}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  <div className="flex items-center gap-2 pt-2">
+                                    <input id="saveMapping" type="checkbox" className="h-4 w-4" checked={saveSelfMapping} onChange={(e) => setSaveSelfMapping(e.target.checked)} />
+                                    <Label htmlFor="saveMapping">Save this mapping for future imports</Label>
+                                  </div>
+                                  {selfMappingError && (
+                                    <div className="p-2 rounded bg-red-100 text-red-800 text-sm">{selfMappingError}</div>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          )}
                         </div>
                       )}
 
@@ -1538,7 +1846,7 @@ function Holdings() {
                         <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
                           Cancel
                         </Button>
-                        <Button onClick={handleCsvUpload} disabled={!csvFile || importSource === 'self' || !!importError}>
+                        <Button onClick={handleCsvUpload} disabled={!csvFile || !!importError || (importSource === 'self' && !isSelfMappingValid())}>
                           Upload
                         </Button>
                       </div>
@@ -1936,7 +2244,7 @@ function Holdings() {
         </Dialog>
 
         {/* Manage Accounts Dialog */}
-        <Dialog open={manageOpen} onOpenChange={(o) => { setManageOpen(o); if (!o) { setEditingAccountId(null); setAccountMsg(null); setAddAccountName(""); setDeleteConfirmId(null);} }}>
+        <Dialog open={manageOpen} onOpenChange={(o) => { setManageOpen(o); if (!o) { setEditingAccountId(null); setAccountMsg(null); setAddAccountName(""); setDeleteConfirmId(null); } }}>
           <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>Manage Accounts</DialogTitle>

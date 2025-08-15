@@ -92,6 +92,9 @@ export default function HistoricalCalculator() {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const calendarRef = useRef<HTMLDivElement>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(formData.startDate || null);
+  // Debounce for fund search
+  const fundSearchDebounceRef = useRef<number | undefined>(undefined);
+  const lastFundQueryRef = useRef<string>("");
 
   // Get fund start date for calendar min date
   const fundStartDate = formData.selectedFund?.start_date ? new Date(formData.selectedFund.start_date) : null;
@@ -121,35 +124,50 @@ export default function HistoricalCalculator() {
     };
   }, [calendarOpen]);
 
-  // Search suggestions
-  const handleFundSearch = async (value: string) => {
+  // Search suggestions (debounced)
+  const handleFundSearch = (value: string) => {
     setFormData((prev) => ({ ...prev, fundName: value, selectedFund: null }));
-    if (value.length > 2) {
+    // Clear previous debounce
+    if (fundSearchDebounceRef.current) {
+      window.clearTimeout(fundSearchDebounceRef.current);
+    }
+    // If too short, clear and stop
+    if (!value || value.length <= 2) {
+      lastFundQueryRef.current = value;
+      setSearchSuggestions([]);
+      return;
+    }
+    lastFundQueryRef.current = value;
+    fundSearchDebounceRef.current = window.setTimeout(async () => {
+      const queryAtSchedule = value;
       try {
-        const response = await fetch(`${API_CONFIG.VITE_API_URL}/api/mutualfunds/search/?q=${value}`);
+        const response = await fetch(`${API_CONFIG.VITE_API_URL}/api/mutualfunds/search/?q=${encodeURIComponent(queryAtSchedule)}`);
         const data = await response.json();
+        // Ignore if input changed since scheduling
+        if (lastFundQueryRef.current !== queryAtSchedule) return;
         if (data.statusCode === 200) {
           const results = data.data.results;
           // Flatten the results object into a single array of funds
           const flattenedResults = Object.entries(results).flatMap(([type, funds]) =>
-            funds.map((fund: any) => ({
-              name: `${fund.mf_name} (${type})`,
-              id: fund.mf_schema_code,
-              isin: fund.isin,
-              start_date: fund.start_date, // <-- add this
-              // add other fields as needed
-            }))
+            Array.isArray(funds)
+              ? funds.map((fund: any) => ({
+                  name: `${fund.mf_name} (${type})`,
+                  id: fund.mf_schema_code,
+                  isin: fund.isin,
+                  start_date: fund.start_date,
+                }))
+              : []
           );
           setSearchSuggestions(flattenedResults);
         } else {
           setSearchSuggestions([]);
         }
       } catch (error) {
-        setSearchSuggestions([]);
+        if (lastFundQueryRef.current === queryAtSchedule) {
+          setSearchSuggestions([]);
+        }
       }
-    } else {
-      setSearchSuggestions([]);
-    }
+    }, 300);
   };
 
   const handleFundSelect = (fund: { name: string, id: number, isin: string }) => {
@@ -161,6 +179,15 @@ export default function HistoricalCalculator() {
     setSearchSuggestions([]);
     setIsSearchFocused(false);
   };
+
+  // Cleanup pending debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (fundSearchDebounceRef.current) {
+        window.clearTimeout(fundSearchDebounceRef.current);
+      }
+    };
+  }, []);
 
   const calculateHistoricalReturns = async () => {
     if (!formData.selectedFund) {
