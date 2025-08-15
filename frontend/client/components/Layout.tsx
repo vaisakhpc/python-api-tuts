@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, TrendingUp, User, Menu, X } from "lucide-react";
+import { Search, TrendingUp, User, Menu, X, Sun, Moon } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { dataService } from "@/services/dataService";
 import InFolioLogo from "@/components/InFolioLogo";
 import { cn } from "@/lib/utils";
@@ -13,6 +14,7 @@ interface LayoutProps {
 }
 
 export default function Layout({ children }: LayoutProps) {
+  type ThemeMode = 'light' | 'dark';
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -21,6 +23,48 @@ export default function Layout({ children }: LayoutProps) {
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
+  // Theme state
+  const [theme, setTheme] = useState<ThemeMode>('light');
+
+  // Cookie helpers
+  const getCookie = (name: string): string | null => {
+    if (typeof document === 'undefined') return null;
+    const match = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()\[\]\\\/\+^])/g, '\\$1') + '=([^;]*)'));
+    return match ? decodeURIComponent(match[1]) : null;
+  };
+  const setCookie = (name: string, value: string, days = 365) => {
+    if (typeof document === 'undefined') return;
+    const expires = new Date(Date.now() + days * 864e5).toUTCString();
+    document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+  };
+
+  const applyTheme = (mode: ThemeMode) => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return;
+    const root = document.documentElement;
+    const setDark = (dark: boolean) => {
+      if (dark) root.classList.add('dark');
+      else root.classList.remove('dark');
+    };
+    setDark(mode === 'dark');
+  };
+
+  // Initialize theme from cookie
+  useEffect(() => {
+  const saved = getCookie('theme');
+  const initial: ThemeMode = (saved === 'light' || saved === 'dark') ? (saved as ThemeMode) : 'light';
+    setTheme(initial);
+    applyTheme(initial);
+  }, []);
+
+  // Persist and apply theme on change
+  useEffect(() => {
+    applyTheme(theme);
+    setCookie('theme', theme, 365);
+  }, [theme]);
+
+  const cycleTheme = () => {
+  setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
+  };
 
   function isTokenExpired(token) {
     if (!token) return true;
@@ -135,6 +179,23 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center space-x-4">
+              {/* Theme switcher with tooltip */}
+              <TooltipProvider delayDuration={150}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label={`Theme: ${theme}`} onClick={cycleTheme}>
+                      {theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <div className="flex items-center gap-2">
+                      {theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                      <span className="font-medium">Theme: {theme === 'dark' ? 'Dark' : 'Light'}</span>
+                      <span className="text-muted-foreground">• Click to switch to {theme === 'dark' ? 'Light' : 'Dark'}</span>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               {!isAuthPage && accessToken && (
                 <>
                   <Link to="/screener">
@@ -246,6 +307,12 @@ export default function Layout({ children }: LayoutProps) {
           {isMobileMenuOpen && (
             <div className="md:hidden border-t py-4">
               <nav className="flex flex-col space-y-2">
+                <div className="flex items-center justify-between px-2">
+                  <span className="text-sm text-muted-foreground">Theme</span>
+                  <Button variant="ghost" size="sm" onClick={cycleTheme}>
+                    {theme === 'dark' ? <><Moon className="h-4 w-4 mr-2" /> Dark</> : <><Sun className="h-4 w-4 mr-2" /> Light</>}
+                  </Button>
+                </div>
                 {!isAuthPage && accessToken && (
                   <>
                     <Link to="/screener" onClick={() => setIsMobileMenuOpen(false)}>
