@@ -41,6 +41,97 @@ import { sortHoldings } from "@/lib/holdingsSortUtils";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 
+// Lightweight donut chart to visualize Invested vs Gain/Loss with center label
+function DonutChart({
+  invested,
+  current,
+  size = 120,
+  strokeWidth = 14,
+}: { invested: number; current: number; size?: number; strokeWidth?: number }) {
+  const gainLoss = current - invested;
+  const total = Math.max(0, invested) + Math.max(0, Math.abs(gainLoss));
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const investedPortion = total > 0 ? Math.max(0, invested) / total : 0;
+  const diffPortion = total > 0 ? Math.max(0, Math.abs(gainLoss)) / total : 0;
+  const investedLen = circumference * investedPortion;
+  const diffLen = circumference * diffPortion;
+
+  const hasData = total > 0;
+  const centerValue = current;
+  const isGain = gainLoss >= 0;
+
+  return (
+    <div className="flex flex-col items-center justify-center">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+            {/* Track */}
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke="hsl(var(--muted))"
+              strokeWidth={strokeWidth}
+            />
+            {hasData ? (
+              <>
+                {/* Invested arc */}
+                {investedLen > 0 && (
+                  <circle
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={radius}
+                    fill="none"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={strokeWidth}
+                    strokeLinecap="butt"
+                    strokeDasharray={`${investedLen} ${circumference - investedLen}`}
+                    strokeDashoffset={0}
+                  />
+                )}
+                {/* Gain/Loss arc placed after invested */}
+                {diffLen > 0 && (
+                  <circle
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={radius}
+                    fill="none"
+                    stroke={isGain ? "#16a34a" : "#dc2626"}
+                    strokeWidth={strokeWidth}
+                    strokeLinecap="butt"
+                    strokeDasharray={`${diffLen} ${circumference - diffLen}`}
+                    strokeDashoffset={-investedLen}
+                  />
+                )}
+              </>
+            ) : null}
+          </g>
+        </svg>
+        {/* Center label */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <div className="text-sm text-muted-foreground">Current</div>
+          <div className="text-base font-semibold">
+            {centerValue.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })}
+          </div>
+        </div>
+      </div>
+      {/* Legend */}
+      <div className="mt-2 flex items-center gap-3 text-xs">
+        <div className="flex items-center gap-1">
+          <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: 'hsl(var(--primary))' }} />
+          <span>Invested</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: gainLoss >= 0 ? '#16a34a' : '#dc2626' }} />
+          <span>{gainLoss >= 0 ? 'Gain' : 'Loss'}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Holdings() {
   // Sync selected account with URL (?account=<slug>)
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1272,7 +1363,7 @@ function Holdings() {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 overflow-x-hidden">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight mb-2">My Holdings</h1>
@@ -1290,18 +1381,18 @@ function Holdings() {
           </div>
         ) : portfolioSummary && (
           <Card className="mb-6">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Portfolio Summary</CardTitle>
-              <div className="flex items-center gap-3">
-                <Button variant="outline" onClick={() => setManageOpen(true)}>Manage</Button>
-                <div className="flex flex-col items-end gap-2">
-                  <div className="w-64">
-                    <Label className="mb-1 text-sm font-semibold">Account</Label>
+            <CardHeader>
+              {/* Mobile-only header: title on first line; second line has Manage + Account select */}
+              <div className="sm:hidden">
+                <CardTitle className="mb-2">Portfolio Summary</CardTitle>
+                <div className="flex items-center gap-3 w-full">
+                  <Button variant="outline" onClick={() => setManageOpen(true)} className="shrink-0">Manage</Button>
+                  <div className="flex-1 min-w-0">
                     <Select
                       value={String(selectedAccountId)}
                       onValueChange={(val) => setSelectedAccountId(val === 'all' ? 'all' : Number(val))}
                     >
-                      <SelectTrigger className="h-10 border-primary/60 bg-primary/5 hover:bg-primary/10 focus:ring-2 focus:ring-primary/40 focus:border-primary font-medium shadow-sm">
+                      <SelectTrigger className="h-10 w-full border-primary/60 bg-primary/5 hover:bg-primary/10 focus:ring-2 focus:ring-primary/40 focus:border-primary font-medium shadow-sm">
                         <SelectValue placeholder="All accounts" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1314,40 +1405,73 @@ function Holdings() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="text-sm whitespace-nowrap">
-                    {(() => {
-                      const fundCount = paginatedHoldings.length;
-                      let buyCount = 0, sellCount = 0;
-                      paginatedHoldings.forEach(h => {
-                        h.transactions.forEach(t => {
-                          if (t.type === "BUY") buyCount++;
-                          if (t.type === "SELL") sellCount++;
+                </div>
+              </div>
+
+              {/* Desktop-only header: restored to original layout exactly */}
+              <div className="hidden sm:flex flex-row items-center justify-between w-full">
+                <CardTitle>Portfolio Summary</CardTitle>
+                <div className="flex items-center gap-3">
+                  <Button variant="outline" onClick={() => setManageOpen(true)}>Manage</Button>
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="w-64">
+                      <Label className="mb-1 text-sm font-semibold">Account</Label>
+                      <Select
+                        value={String(selectedAccountId)}
+                        onValueChange={(val) => setSelectedAccountId(val === 'all' ? 'all' : Number(val))}
+                      >
+                        <SelectTrigger className="h-10 border-primary/60 bg-primary/5 hover:bg-primary/10 focus:ring-2 focus:ring-primary/40 focus:border-primary font-medium shadow-sm">
+                          <SelectValue placeholder="All accounts" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All accounts</SelectItem>
+                          {accounts.map(acc => (
+                            <SelectItem key={acc.id} value={String(acc.id)}>
+                              {acc.name}{acc.is_primary ? " (primary)" : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="text-sm whitespace-nowrap">
+                      {(() => {
+                        const fundCount = paginatedHoldings.length;
+                        let buyCount = 0, sellCount = 0;
+                        paginatedHoldings.forEach(h => {
+                          h.transactions.forEach(t => {
+                            if (t.type === "BUY") buyCount++;
+                            if (t.type === "SELL") sellCount++;
+                          });
                         });
-                      });
-                      return (
-                        <span>
-                          <span className="font-semibold text-primary">{fundCount} Funds</span>
-                          <span className="ml-2">
-                            (<span className="text-green-600 font-semibold">{buyCount} BUYs</span>, <span className="text-red-600 font-semibold">{sellCount} SELLs</span>)
+                        return (
+                          <span>
+                            <span className="font-semibold text-primary">{fundCount} Funds</span>
+                            <span className="ml-2">
+                              (<span className="text-green-600 font-semibold">{buyCount} BUYs</span>, <span className="text-red-600 font-semibold">{sellCount} SELLs</span>)
+                            </span>
                           </span>
-                        </span>
-                      );
-                    })()}
+                        );
+                      })()}
+                    </div>
                   </div>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <div className="text-center p-4 border rounded-lg">
-                  <div className="text-2xl font-bold">{formatCurrency(Math.round(portfolioSummary.current_value))}</div>
-                  <div className="text-sm text-muted-foreground">Current Value</div>
+                <div className="text-center p-4 border rounded-lg flex items-center justify-center h-full">
+                  <DonutChart
+                    invested={Math.max(0, Math.round(portfolioSummary.total_invested || 0))}
+                    current={Math.max(0, Math.round(portfolioSummary.current_value || 0))}
+                    size={140}
+                    strokeWidth={10}
+                  />
                 </div>
-                <div className="text-center p-4 border rounded-lg">
+                <div className="text-center p-4 border rounded-lg flex flex-col items-center justify-center h-full">
                   <div className="text-2xl font-bold">{formatCurrency(Math.round(portfolioSummary.total_invested))}</div>
                   <div className="text-sm text-muted-foreground">Total Invested</div>
                 </div>
-                <div className="text-center p-4 border rounded-lg">
+                <div className="text-center p-4 border rounded-lg flex flex-col items-center justify-center h-full">
                   <div className={cn(
                     "text-2xl font-bold flex items-center justify-center",
                     portfolioSummary.profit >= 0 ? "text-green-600" : "text-red-600"
@@ -1362,7 +1486,7 @@ function Holdings() {
                     {portfolioSummary.profit >= 0 ? 'Total Gains' : 'Total Loss'}
                   </div>
                 </div>
-                <div className="text-center p-4 border rounded-lg">
+                <div className="text-center p-4 border rounded-lg flex flex-col items-center justify-center h-full">
                   <div className={cn(
                     "text-2xl font-bold",
                     portfolioSummary.absolute_return >= 0 ? "text-green-600" : "text-red-600"
@@ -1371,7 +1495,7 @@ function Holdings() {
                   </div>
                   <div className="text-sm text-muted-foreground">Overall Return</div>
                 </div>
-                <div className="text-center p-4 border rounded-lg">
+                <div className="text-center p-4 border rounded-lg flex flex-col items-center justify-center h-full">
                   <div className={cn(
                     "text-2xl font-bold",
                     portfolioSummary.xirr >= 0 ? "text-green-600" : "text-red-600"
@@ -1422,7 +1546,7 @@ function Holdings() {
                     {globalPurgeLoading ? 'Deleting…' : 'Delete All'}
                   </Button>
                 </AlertDialogTrigger>
-                <AlertDialogContent>
+                <AlertDialogContent className="w-[95vw] max-w-[95vw] sm:max-w-md max-h-[75vh] overflow-y-auto">
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete all your transactions?</AlertDialogTitle>
                     <AlertDialogDescription>
@@ -1473,7 +1597,7 @@ function Holdings() {
                   Add New Transaction
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
+              <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-md max-h-[85vh] overflow-y-auto">
                 {addSuccess && (
                   <div className="mb-4 p-3 rounded bg-green-100 text-green-800 font-medium flex items-center justify-between">
                     <span>Transaction added successfully!</span>
@@ -1664,7 +1788,7 @@ function Holdings() {
                   Import CSV
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
+              <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-md max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Import Transactions from CSV</DialogTitle>
                   <DialogDescription>
@@ -1722,13 +1846,13 @@ function Holdings() {
                             <div className="mt-3 text-xs space-y-2">
                               <div>
                                 <div className="font-medium mb-1">Header example:</div>
-                                <code className="block p-2 bg-background rounded border">
+                                <code className="block p-2 bg-background rounded border overflow-x-auto">
                                   Date, Name of the Fund, Order, Units, NAV
                                 </code>
                               </div>
                               <div>
                                 <div className="font-medium mb-1">Row example:</div>
-                                <code className="block p-2 bg-background rounded border">
+                                <code className="block p-2 bg-background rounded border overflow-x-auto">
                                   2025-06-30,HDFC Flexicap Growth Direct Plan,buy,228.878,2184.456
                                 </code>
                               </div>
@@ -1959,7 +2083,7 @@ function Holdings() {
                                       <Trash2 className="h-4 w-4 text-destructive" />
                                     </Button>
                                   </AlertDialogTrigger>
-                                  <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                                  <AlertDialogContent onClick={(e) => e.stopPropagation()} className="w-[95vw] max-w-[95vw] sm:max-w-md max-h-[75vh] overflow-y-auto">
                                     <AlertDialogHeader>
                                       <AlertDialogTitle>Delete all transactions for this fund?</AlertDialogTitle>
                                       <AlertDialogDescription>
@@ -2095,7 +2219,7 @@ function Holdings() {
                                                     <Trash2 className="h-3 w-3" />
                                                   </Button>
                                                 </AlertDialogTrigger>
-                                                <AlertDialogContent>
+                                                <AlertDialogContent className="w-[95vw] max-w-[95vw] sm:max-w-md max-h-[75vh] overflow-y-auto">
                                                   <AlertDialogHeader>
                                                     <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
                                                     <AlertDialogDescription>
@@ -2104,7 +2228,7 @@ function Holdings() {
                                                   </AlertDialogHeader>
                                                   <AlertDialogFooter>
                                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => handleDeleteTransaction(transaction.id, holding.fundId)}>
+                                                    <AlertDialogAction onClick={() => handleDeleteTransaction(transaction.id, holding.fundId)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                                                       Delete
                                                     </AlertDialogAction>
                                                   </AlertDialogFooter>
@@ -2132,7 +2256,7 @@ function Holdings() {
 
         {/* Edit Transaction Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-md max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Transaction</DialogTitle>
               <DialogDescription>
@@ -2245,7 +2369,7 @@ function Holdings() {
 
         {/* Manage Accounts Dialog */}
         <Dialog open={manageOpen} onOpenChange={(o) => { setManageOpen(o); if (!o) { setEditingAccountId(null); setAccountMsg(null); setAddAccountName(""); setDeleteConfirmId(null); } }}>
-          <DialogContent className="sm:max-w-2xl">
+          <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-2xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Manage Accounts</DialogTitle>
               <DialogDescription>Rename, set primary, delete, or add accounts.</DialogDescription>
@@ -2257,34 +2381,67 @@ function Holdings() {
             )}
             <div className="space-y-3 max-h-80 overflow-y-auto overflow-x-hidden pr-1">
               {accounts.map(acc => (
-                <div key={acc.id} className="flex items-center w-full gap-3 border rounded px-3 py-2 bg-background">
-                  <div className="flex items-center min-w-0 pr-2 flex-1">
-                    {editingAccountId === acc.id ? (
-                      <Input value={editingName} onChange={(e) => setEditingName(e.target.value)} className="h-8 w-full" />
-                    ) : (
-                      <div className="flex items-center gap-2 min-w-0 font-medium w-full">
-                        <span className="truncate" title={acc.name}>{acc.name}</span>
-                        {acc.is_primary && <span className="shrink-0 text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">Primary</span>}
-                      </div>
-                    )}
+                <React.Fragment key={acc.id}>
+                  {/* Desktop: restore original side-by-side row */}
+                  <div className="hidden sm:flex items-center w-full gap-3 border rounded px-3 py-2 bg-background">
+                    <div className="flex items-center min-w-0 pr-2 flex-1">
+                      {editingAccountId === acc.id ? (
+                        <Input value={editingName} onChange={(e) => setEditingName(e.target.value)} className="h-8 w-full" />
+                      ) : (
+                        <div className="flex items-center gap-2 min-w-0 font-medium w-full">
+                          <span className="truncate" title={acc.name}>{acc.name}</span>
+                          {acc.is_primary && <span className="shrink-0 text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">Primary</span>}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-end shrink-0 ml-auto">
+                      {editingAccountId === acc.id ? (
+                        <>
+                          <Button size="sm" onClick={submitRename} disabled={renameLoading || !editingName.trim()}>Save</Button>
+                          <Button size="sm" variant="outline" onClick={() => setEditingAccountId(null)}>Cancel</Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button size="sm" variant="ghost" onClick={() => startInlineRename(acc.id)}>Rename</Button>
+                          <Button size="sm" variant="ghost" disabled={acc.is_primary} onClick={() => handleMakePrimary(acc.id)} title={acc.is_primary ? 'Already primary' : 'Make primary'}>
+                            {acc.is_primary ? 'Primary' : 'Make primary'}
+                          </Button>
+                          <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setDeleteConfirmId(acc.id)}>Delete</Button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center justify-end shrink-0 ml-auto">
-                    {editingAccountId === acc.id ? (
-                      <>
-                        <Button size="sm" onClick={submitRename} disabled={renameLoading || !editingName.trim()}>Save</Button>
-                        <Button size="sm" variant="outline" onClick={() => setEditingAccountId(null)}>Cancel</Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button size="sm" variant="ghost" onClick={() => startInlineRename(acc.id)}>Rename</Button>
-                        <Button size="sm" variant="ghost" disabled={acc.is_primary} onClick={() => handleMakePrimary(acc.id)} title={acc.is_primary ? 'Already primary' : 'Make primary'}>
-                          {acc.is_primary ? 'Primary' : 'Make primary'}
-                        </Button>
-                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setDeleteConfirmId(acc.id)}>Delete</Button>
-                      </>
-                    )}
+
+                  {/* Mobile: stacked box (name first line, buttons second) */}
+                  <div className="sm:hidden w-full border rounded px-3 py-2 bg-background">
+                    <div className="flex items-center min-w-0">
+                      {editingAccountId === acc.id ? (
+                        <Input value={editingName} onChange={(e) => setEditingName(e.target.value)} className="h-8 w-full" />
+                      ) : (
+                        <div className="flex items-center gap-2 min-w-0 w-full">
+                          <span className="font-medium break-words whitespace-normal" title={acc.name}>{acc.name}</span>
+                          {acc.is_primary && <span className="shrink-0 text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">Primary</span>}
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-muted/100 border-primary flex flex-wrap items-center justify-end gap-2">
+                      {editingAccountId === acc.id ? (
+                        <>
+                          <Button size="sm" onClick={submitRename} disabled={renameLoading || !editingName.trim()}>Save</Button>
+                          <Button size="sm" variant="outline" onClick={() => setEditingAccountId(null)}>Cancel</Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button size="sm" variant="ghost" onClick={() => startInlineRename(acc.id)}>Rename</Button>
+                          <Button size="sm" variant="ghost" disabled={acc.is_primary} onClick={() => handleMakePrimary(acc.id)} title={acc.is_primary ? 'Already primary' : 'Make primary'}>
+                            {acc.is_primary ? 'Primary' : 'Make primary'}
+                          </Button>
+                          <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setDeleteConfirmId(acc.id)}>Delete</Button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
+                </React.Fragment>
               ))}
             </div>
             <div className="mt-3 border-t pt-3">
@@ -2295,7 +2452,7 @@ function Holdings() {
             </div>
             {/* Inline delete confirm */}
             <AlertDialog open={deleteConfirmId != null} onOpenChange={(o) => { if (!o) setDeleteConfirmId(null); }}>
-              <AlertDialogContent>
+              <AlertDialogContent className="w-[95vw] max-w-[95vw] sm:max-w-md max-h-[75vh] overflow-y-auto">
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete this account?</AlertDialogTitle>
                   <AlertDialogDescription>

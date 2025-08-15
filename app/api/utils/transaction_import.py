@@ -59,11 +59,17 @@ def validate_nav(fund, nav_date, nav_val, tolerance=0.1):
         )
 
 
-def load_existing_holdings(user, fund_ids):
+def load_existing_holdings(user, fund_ids, account_id: Optional[int] = None):
+    """
+    Aggregate existing holdings per fund for the specified user, scoped to an account when provided.
+    This ensures validation (e.g., SELL checks) is done against the target account for imports.
+    """
     holdings = defaultdict(float)
+    qs = MFHolding.objects.filter(user=user, fund_id__in=fund_ids)
+    if account_id is not None:
+        qs = qs.filter(account_id=account_id)
     prev_transactions = (
-        MFHolding.objects.filter(user=user, fund_id__in=fund_ids)
-        .order_by("transacted_at", "created_at")
+        qs.order_by("transacted_at", "created_at")
         .values("fund_id", "type", "units")
     )
     for tx in prev_transactions:
@@ -104,7 +110,9 @@ def process_kuvera_transactions(user, rows, account_id: Optional[int] = None):
 
     rows.sort(key=lambda r: r["ParsedDate"])
     fund_ids = [fund.id for fund in funds_map.values()]
-    holdings = load_existing_holdings(user, fund_ids)
+    # Resolve target account once and scope existing holdings to it
+    selected_acc = get_target_account(user, account_id)
+    holdings = load_existing_holdings(user, fund_ids, selected_acc.id)
 
     new_holdings_to_create = []
 
@@ -135,7 +143,7 @@ def process_kuvera_transactions(user, rows, account_id: Optional[int] = None):
         if mf_type == MFHolding.TYPE_SELL:
             if units > holdings[fund.id] + 1e-8:
                 errors.append(
-                    f"Row {idx}: Sell {units}, but only {holdings[fund.id]:.4f} held ({fund.kuvera_name or fund.mf_name})"
+                    f"Row {idx}: Sell {units}, but only {round(holdings[fund.id], 2)} held ({fund.kuvera_name or fund.mf_name}), Maybe you have this fund on another account!"
                 )
                 continue
             holdings[fund.id] -= units
@@ -143,19 +151,17 @@ def process_kuvera_transactions(user, rows, account_id: Optional[int] = None):
             holdings[fund.id] += units
 
         new_holding = MFHolding(
-            user=user,
-            fund=fund,
-            transacted_at=nav_date,
-            type=mf_type,
-            units=units,
-            nav=nav_val,
-        )
-        # Attach to selected account if provided; else fallback to user's primary
-        selected_acc = get_target_account(user, account_id)
+                user=user,
+                fund=fund,
+                transacted_at=nav_date,
+                type=mf_type,
+                units=units,
+                nav=nav_val,
+            )
+        # Attach to resolved account (selected or primary)
         new_holding.account = selected_acc
         new_holdings_to_create.append(new_holding)
-    print(new_holdings_to_create)
-    print(errors)
+
     return errors, new_holdings_to_create
 
 
@@ -224,7 +230,9 @@ def process_self_transactions(user, rows, column_map, account_id: Optional[int] 
     rows_valid.sort(key=lambda r: r["_parsed_date"])
 
     fund_ids = [fund.id for fund in funds_map.values()]
-    holdings = load_existing_holdings(user, fund_ids)
+    # Resolve target account once and scope existing holdings
+    selected_acc = get_target_account(user, account_id)
+    holdings = load_existing_holdings(user, fund_ids, selected_acc.id)
     new_holdings = []
 
     for idx, row in enumerate(rows_valid, start=2):
@@ -257,7 +265,7 @@ def process_self_transactions(user, rows, column_map, account_id: Optional[int] 
         # Negative sales
         if mf_type == MFHolding.TYPE_SELL and units > holdings[fund.id] + 1e-8:
             errors.append(
-                f"Row {idx}: Selling {units}, but only {holdings[fund.id]:.4f} held"
+                f"Row {idx}: Selling {units}, but only {round(holdings[fund.id], 2)} held"
             )
             continue
         if mf_type == MFHolding.TYPE_SELL:
@@ -265,8 +273,6 @@ def process_self_transactions(user, rows, column_map, account_id: Optional[int] 
         else:
             holdings[fund.id] += units
         # Prepare object
-        # Resolve account: selected or fallback to primary
-        selected_acc = get_target_account(user, account_id)
         new_holdings.append(
             MFHolding(
                 user=user,
